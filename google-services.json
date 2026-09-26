@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "235759569190",
+    "project_id": "victory-tata",
+    "storage_bucket": "victory-tata.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:235759569190:android:a97ba3ce2c3702bca099e7",
+        "android_client_info": {
+          "package_name": "com.zulolabs.victorytata"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "235759569190-elpved1m4ijjldn27qmtanvugt5j317i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zulolabs.victorytata",
+            "certificate_hash": "ad708d4ce6dc21399e8a9fac5d1b8128b49177b8"
+          }
+        },
+        {
+          "client_id": "235759569190-bh0t7dnf1gr1c4rqju25k8b036usec4h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdtM4LsP8VS89klMFaWDlWWMzb22GAVOM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "235759569190-bh0t7dnf1gr1c4rqju25k8b036usec4h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
