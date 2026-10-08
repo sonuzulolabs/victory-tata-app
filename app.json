@@ -1,24 +1,37 @@
 {
   "expo": {
-    "name": "aditya-design",
+    "name": "Victory Tata",
     "slug": "aditya-design",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "adityadesign",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.zulolabs.victorytata",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "aps-environment": "production"
+      },
+      "infoPlist": {
+        "CFBundleDisplayName": "Victory Tata",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "usesCleartextTraffic": true,
       "package": "com.zulolabs.victorytata",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -32,13 +45,28 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0A1848",
+          "backgroundColor": "#000000",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 200
         }
       ],
-      "expo-build-properties",
-      "@react-native-firebase/app",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
+      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
       "@react-native-firebase/auth"
     ],
     "experiments": {
@@ -48,8 +76,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b94313d6-b017-49c4-aceb-403a335ecb52"
+        "projectId": "767b160b-6883-4f0e-8541-befffc2519a3"
       }
-    }
+    },
+    "owner": "zulolabs"
   }
 }

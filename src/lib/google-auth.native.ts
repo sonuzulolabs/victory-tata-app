@@ -1,5 +1,6 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { getAuth, GoogleAuthProvider, signInWithCredential } from '@react-native-firebase/auth';
+import { Platform } from 'react-native';
 
 type GoogleAccount = {
   name: string;
@@ -17,9 +18,14 @@ function ensureConfigured() {
   configured = true;
 }
 
+async function ensureGooglePlayServices(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+}
+
 export async function signInWithGoogleAccount(): Promise<GoogleAccount | null> {
   ensureConfigured();
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  await ensureGooglePlayServices();
 
   try {
     const response = await GoogleSignin.signIn();
@@ -42,6 +48,19 @@ export async function signInWithGoogleAccount(): Promise<GoogleAccount | null> {
         ? String((error as { code: unknown }).code)
         : '';
     if (code === statusCodes.SIGN_IN_CANCELLED) return null;
+
+    const message =
+      typeof error === 'object' && error && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+    if (code === '10' || /developer_error/i.test(message)) {
+      const hint =
+        Platform.OS === 'ios'
+          ? 'On iOS, add the iOS app in Firebase (bundle com.zulolabs.victorytata), enable Google sign-in, replace GoogleService-Info.plist, then rebuild. See ./scripts/setup-ios-firebase-plist.sh'
+          : 'On Android, add the SHA-1 of your APK signing key in Firebase for package com.zulolabs.victorytata, enable Google sign-in, replace google-services.json, then rebuild. Run: ./scripts/google-signin-firebase-sha.sh';
+      throw new Error(`Google Sign-In is not set up for this app install. ${hint}`);
+    }
+
     throw error;
   }
 }

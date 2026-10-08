@@ -24,8 +24,11 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://purple-manatee-599622.hostingersite.com",
+        "EXPO_PUBLIC_API_URL": "https://victorytata.zulolabs.com",
         "EXPO_PUBLIC_API_KEY": "vcrm_3E6g6CQwrEyEaEY9UOXWd5ZiM6k5OzSW2AGB5m1JNkKwtZ0m"
       }
     }
