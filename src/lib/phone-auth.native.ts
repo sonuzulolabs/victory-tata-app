@@ -21,6 +21,14 @@ export async function confirmPhoneOtp(code: string): Promise<string | null> {
   return result?.user.phoneNumber ?? null;
 }
 
+export async function getFirebaseIdToken(): Promise<string> {
+  const user = getAuth().currentUser;
+  if (!user) {
+    throw new Error('Verify OTP first.');
+  }
+  return user.getIdToken();
+}
+
 export async function signOutPhoneAuth(): Promise<void> {
   if (!getAuth().currentUser) return;
   await signOut(getAuth());

@@ -3,6 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { VideoPreloader } from '@/components/video-preloader';
+import { AuthRequiredHost } from '@/components/auth-required-host';
 import { SCREEN_BG } from '@/constants/brand';
 import { LikedOffersProvider } from '@/context/liked-offers';
 import { UserProfileProvider } from '@/context/user-profile';
@@ -57,8 +58,27 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: SCREEN_BG },
             }}
           />
+          <Stack.Screen
+            name="delete-account"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+              contentStyle: { backgroundColor: SCREEN_BG },
+            }}
+          />
+          <Stack.Screen
+            name="delete-account-otp"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+              contentStyle: { backgroundColor: SCREEN_BG },
+            }}
+          />
         </Stack>
         <VideoPreloader />
+        <AuthRequiredHost />
         </LikedOffersProvider>
       </UserProfileProvider>
     </ThemeProvider>

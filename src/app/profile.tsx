@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AUTH_BLUE, AUTH_BLUE_SOFT, SCREEN_BG } from '@/constants/brand';
 import {
-  initialsFromName,
+  googleInitials,
   useUserProfile,
   type UserProfile,
 } from '@/context/user-profile';
 import { formatInr } from '@/data/referrals';
-import { fetchAccountSummary } from '@/lib/api';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { fetchAccountSummary, fetchDealership } from '@/lib/api';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
 
 function isProfileIncomplete(profile: UserProfile) {
@@ -21,20 +22,12 @@ function isProfileIncomplete(profile: UserProfile) {
   return !profile.phone.trim();
 }
 
-function avatarInitials(profile: UserProfile | null) {
-  if (!profile) return '?';
-  if (profile.name.trim()) return initialsFromName(profile.name);
-  if (profile.email.trim()) return initialsFromName(profile.email.split('@')[0] ?? '?');
-  const digits = profile.phone.replace(/\D/g, '');
-  if (digits.length >= 2) return digits.slice(-2);
-  return '?';
-}
-
 const LINKS: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   caption: string;
   href?: '/(tabs)/offers' | '/(tabs)/referrals' | '/(tabs)/test-drive';
+  action?: 'call';
 }[] = [
   {
     icon: 'pricetag-outline',
@@ -58,17 +51,22 @@ const LINKS: {
     icon: 'call-outline',
     label: 'Call showroom',
     caption: 'Victory Tata · Avinashi Road',
+    action: 'call' as const,
   },
 ];
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, signOut } = useUserProfile();
+  const { contentMaxWidth, gutter, isTablet, fs, lh } = useBreakpoint();
+  const { profile, signOut, refreshFromServer } = useUserProfile();
   const [points, setPoints] = useState<number | null>(null);
   const [rewards, setRewards] = useState<number | null>(null);
   const [referralCount, setReferralCount] = useState<number | null>(null);
 
   const phone = mobileDigitsFromStored(profile?.phone ?? '');
+  const initials = googleInitials(profile);
+  const avatarSize = isTablet ? 96 : 76;
+  const backSize = isTablet ? 48 : 40;
 
   useFocusEffect(
     useCallback(() => {
@@ -79,6 +77,7 @@ export default function ProfileScreen() {
         return;
       }
       let cancelled = false;
+      void refreshFromServer();
       void fetchAccountSummary(phone)
         .then((summary) => {
           if (cancelled) return;
@@ -95,7 +94,7 @@ export default function ProfileScreen() {
       return () => {
         cancelled = true;
       };
-    }, [phone]),
+    }, [phone, refreshFromServer]),
   );
 
   const memberSince = profile?.memberSince.trim() ?? '';
@@ -143,36 +142,88 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
+    <View style={[styles.root, { paddingTop: insets.top, maxWidth: contentMaxWidth }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingHorizontal: gutter,
+            paddingTop: isTablet ? 12 : 8,
+            paddingBottom: isTablet ? 16 : 12,
+          },
+        ]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={6}
           onPress={goBack}
-          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.75 : 1 }]}>
-          <Ionicons name="arrow-back" size={20} color={AUTH_BLUE} />
+          style={({ pressed }) => [
+            styles.backBtn,
+            { width: backSize, height: backSize, borderRadius: isTablet ? 14 : 12, opacity: pressed ? 0.75 : 1 },
+          ]}>
+          <Ionicons name="arrow-back" size={fs(20)} color={AUTH_BLUE} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerEyebrow}>Victory Tata</Text>
-          <Text style={styles.headerTitle}>My Profile</Text>
+          <Text style={[styles.headerEyebrow, { fontSize: fs(11), lineHeight: lh(11, 1.3) }]}>
+            Victory Tata
+          </Text>
+          <Text style={[styles.headerTitle, { fontSize: fs(20), lineHeight: lh(20, 1.25) }]}>
+            My Profile
+          </Text>
         </View>
-        <View style={styles.headerSpacer} />
+        <View style={[styles.headerSpacer, { width: backSize }]} />
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          {
+            paddingBottom: insets.bottom + (isTablet ? 40 : 28),
+            paddingHorizontal: gutter,
+            paddingTop: isTablet ? 22 : 16,
+            maxWidth: isTablet ? 720 : undefined,
+            width: '100%',
+            alignSelf: 'center',
+          },
+        ]}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatarInitials(profile)}</Text>
+        <View style={[styles.identity, isTablet && styles.identityTablet]}>
+          <View
+            style={[
+              styles.avatar,
+              {
+                width: avatarSize,
+                height: avatarSize,
+                borderRadius: avatarSize / 2,
+                marginBottom: isTablet ? 18 : 14,
+              },
+            ]}>
+            {initials ? (
+              <Text style={[styles.avatarText, { fontSize: fs(30) }]}>{initials}</Text>
+            ) : (
+              <Ionicons name="person" size={fs(36)} color="#FFFFFF" />
+            )}
           </View>
-          {showName || !profile ? <Text style={styles.name}>{nameText}</Text> : null}
-          {showPhone ? <Text style={styles.meta}>{phoneText}</Text> : null}
-          {showEmail ? <Text style={styles.meta}>{emailText}</Text> : null}
+          {showName || !profile ? (
+            <Text style={[styles.name, { fontSize: fs(24), lineHeight: lh(24, 1.25) }]}>
+              {nameText}
+            </Text>
+          ) : null}
+          {showPhone ? (
+            <Text style={[styles.meta, { fontSize: fs(15), lineHeight: lh(15, 1.35) }]}>
+              {phoneText}
+            </Text>
+          ) : null}
+          {showEmail ? (
+            <Text style={[styles.meta, { fontSize: fs(15), lineHeight: lh(15, 1.35) }]}>
+              {emailText}
+            </Text>
+          ) : null}
           {badgeParts.length > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badgeParts.join(' · ')}</Text>
+            <View style={[styles.badge, isTablet && styles.badgeTablet]}>
+              <Text style={[styles.badgeText, { fontSize: fs(13), lineHeight: lh(13, 1.3) }]}>
+                {badgeParts.join(' · ')}
+              </Text>
             </View>
           ) : null}
 
@@ -181,72 +232,144 @@ export default function ProfileScreen() {
               accessibilityRole="button"
               accessibilityLabel={editLabel}
               onPress={() => router.push('/edit-profile')}
-              style={({ pressed }) => [styles.editBtn, { opacity: pressed ? 0.85 : 1 }]}>
-              <Ionicons name={editIcon} size={16} color={AUTH_BLUE} />
-              <Text style={styles.editBtnText}>{editLabel}</Text>
+              style={({ pressed }) => [
+                styles.editBtn,
+                isTablet && styles.editBtnTablet,
+                { opacity: pressed ? 0.85 : 1 },
+              ]}>
+              <Ionicons name={editIcon} size={fs(16)} color={AUTH_BLUE} />
+              <Text style={[styles.editBtnText, { fontSize: fs(14) }]}>{editLabel}</Text>
             </Pressable>
           ) : null}
         </View>
 
-        <View style={styles.statsRow}>
+        <View style={[styles.statsRow, isTablet && styles.statsRowTablet]}>
           {stats.map((stat) => (
-            <View key={stat.id} style={styles.statCard}>
-              <View style={styles.statIcon}>
-                <Ionicons name={stat.icon} size={15} color={AUTH_BLUE} />
+            <View key={stat.id} style={[styles.statCard, isTablet && styles.statCardTablet]}>
+              <View style={[styles.statIcon, isTablet && styles.statIconTablet]}>
+                <Ionicons name={stat.icon} size={fs(16)} color={AUTH_BLUE} />
               </View>
-              <Text style={styles.statValue} numberOfLines={1}>
+              <Text
+                style={[styles.statValue, { fontSize: fs(18), lineHeight: lh(18, 1.25) }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}>
                 {stat.value}
               </Text>
-              <Text style={styles.statLabel} numberOfLines={1}>
+              <Text
+                style={[styles.statLabel, { fontSize: fs(13), lineHeight: lh(13, 1.3) }]}
+                numberOfLines={1}>
                 {stat.label}
               </Text>
-              <Text style={styles.statHint} numberOfLines={1}>
+              <Text
+                style={[styles.statHint, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]}
+                numberOfLines={1}>
                 {stat.hint}
               </Text>
             </View>
           ))}
         </View>
 
-        <Text style={styles.sectionLabel}>Quick links</Text>
-        <View style={styles.list}>
+        <Text
+          style={[
+            styles.sectionLabel,
+            {
+              fontSize: fs(13),
+              lineHeight: lh(13, 1.3),
+              marginTop: isTablet ? 34 : 28,
+              marginBottom: isTablet ? 14 : 10,
+            },
+          ]}>
+          Quick links
+        </Text>
+        <View style={[styles.list, isTablet && styles.listTablet]}>
           {LINKS.map((item, index) => (
             <Pressable
               key={item.label}
               accessibilityRole="button"
               accessibilityLabel={item.label}
-              disabled={!item.href}
+              disabled={!item.href && item.action !== 'call'}
               onPress={() => {
-                if (item.href) router.push(item.href);
+                if (item.href) {
+                  router.push(item.href);
+                  return;
+                }
+                if (item.action === 'call') {
+                  void fetchDealership()
+                    .then((dealership) => Linking.openURL(`tel:${dealership.phone}`))
+                    .catch(() => Linking.openURL('tel:0421220000'));
+                }
               }}
               style={({ pressed }) => [
                 styles.row,
+                isTablet && styles.rowTablet,
                 index === LINKS.length - 1 && styles.rowLast,
                 { opacity: pressed && item.href ? 0.75 : 1 },
               ]}>
-              <View style={styles.rowIcon}>
-                <Ionicons name={item.icon} size={18} color={AUTH_BLUE} />
+              <View style={[styles.rowIcon, isTablet && styles.rowIconTablet]}>
+                <Ionicons name={item.icon} size={fs(18)} color={AUTH_BLUE} />
               </View>
               <View style={styles.rowCopy}>
-                <Text style={styles.rowLabel}>{item.label}</Text>
-                <Text style={styles.rowCaption}>{item.caption}</Text>
+                <Text style={[styles.rowLabel, { fontSize: fs(16), lineHeight: lh(16, 1.3) }]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.rowCaption, { fontSize: fs(13), lineHeight: lh(13, 1.35) }]}>
+                  {item.caption}
+                </Text>
               </View>
               {item.href ? (
-                <Ionicons name="chevron-forward" size={16} color="rgba(10,24,72,0.35)" />
+                <Ionicons name="chevron-forward" size={fs(18)} color="rgba(10,24,72,0.35)" />
               ) : null}
             </Pressable>
           ))}
         </View>
 
+        {profile?.authMethod === 'phone' || profile?.authMethod === 'google' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            onPress={() => router.push('/delete-account')}
+            style={({ pressed }) => [
+              styles.deleteAccount,
+              isTablet && styles.deleteAccountTablet,
+              { opacity: pressed ? 0.8 : 1 },
+            ]}>
+            <Ionicons name="trash-outline" size={fs(18)} color="#B42318" />
+            <Text style={[styles.deleteAccountText, { fontSize: fs(16) }]}>Delete account</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Sign out"
+          accessibilityLabel={profile ? 'Sign out' : 'Sign in'}
           onPress={() => {
+            if (!profile) {
+              router.replace('/');
+              return;
+            }
             signOut();
             router.replace('/');
           }}
-          style={({ pressed }) => [styles.signOut, { opacity: pressed ? 0.8 : 1 }]}>
-          <Ionicons name="log-out-outline" size={18} color="#B42318" />
-          <Text style={styles.signOutText}>Sign out</Text>
+          style={({ pressed }) => [
+            styles.signOut,
+            isTablet && styles.signOutTablet,
+            profile?.authMethod !== 'phone' && profile?.authMethod !== 'google'
+              ? { marginTop: isTablet ? 28 : 20 }
+              : null,
+            { opacity: pressed ? 0.8 : 1 },
+          ]}>
+          <Ionicons
+            name={profile ? 'log-out-outline' : 'log-in-outline'}
+            size={fs(18)}
+            color={profile ? '#B42318' : AUTH_BLUE}
+          />
+          <Text
+            style={[
+              styles.signOutText,
+              { fontSize: fs(16), color: profile ? '#B42318' : AUTH_BLUE },
+            ]}>
+            {profile ? 'Sign out' : 'Sign in'}
+          </Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -257,25 +380,18 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-    maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
     gap: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(10,24,72,0.08)',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
     backgroundColor: SCREEN_BG,
     alignItems: 'center',
     justifyContent: 'center',
@@ -286,7 +402,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerEyebrow: {
-    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -294,18 +409,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   headerTitle: {
-    fontSize: 17,
     fontWeight: '800',
     color: AUTH_BLUE,
     letterSpacing: -0.3,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
+  headerSpacer: {},
+  scroll: {},
   identity: {
     alignItems: 'center',
     paddingVertical: 24,
@@ -315,32 +424,32 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(10,24,72,0.08)',
   },
+  identityTablet: {
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    borderRadius: 24,
+  },
   avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
     backgroundColor: AUTH_BLUE,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
   },
   avatarText: {
-    fontSize: 26,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   name: {
-    fontSize: 22,
     fontWeight: '700',
     color: AUTH_BLUE,
     letterSpacing: -0.3,
     marginBottom: 4,
+    textAlign: 'center',
   },
   meta: {
-    fontSize: 14,
     color: 'rgba(18,20,26,0.58)',
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: 'center',
   },
   badge: {
     marginTop: 14,
@@ -349,8 +458,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(10,24,72,0.08)',
   },
+  badgeTablet: {
+    marginTop: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   badgeText: {
-    fontSize: 12,
     fontWeight: '600',
     color: AUTH_BLUE_SOFT,
   },
@@ -364,8 +477,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(10,24,72,0.07)',
   },
+  editBtnTablet: {
+    marginTop: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    gap: 8,
+  },
   editBtnText: {
-    fontSize: 13,
     fontWeight: '700',
     color: AUTH_BLUE,
   },
@@ -374,6 +492,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 10,
+  },
+  statsRowTablet: {
+    marginTop: 18,
+    gap: 14,
   },
   statCard: {
     flex: 1,
@@ -387,6 +509,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(10,24,72,0.08)',
     alignItems: 'center',
   },
+  statCardTablet: {
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 18,
+  },
   statIcon: {
     width: 28,
     height: 28,
@@ -396,9 +524,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
+  statIconTablet: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
   statValue: {
-    fontSize: 17,
-    lineHeight: 22,
     fontWeight: '800',
     color: AUTH_BLUE,
     letterSpacing: -0.3,
@@ -406,24 +538,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statLabel: {
-    fontSize: 12,
-    lineHeight: 16,
     fontWeight: '700',
     color: AUTH_BLUE,
     textAlign: 'center',
   },
   statHint: {
     marginTop: 2,
-    fontSize: 11,
-    lineHeight: 14,
     color: 'rgba(18,20,26,0.45)',
     textAlign: 'center',
   },
   sectionLabel: {
-    marginTop: 28,
-    marginBottom: 10,
     marginLeft: 4,
-    fontSize: 12,
     fontWeight: '700',
     color: 'rgba(10,24,72,0.5)',
     letterSpacing: 0.6,
@@ -436,6 +561,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(10,24,72,0.08)',
     overflow: 'hidden',
   },
+  listTablet: {
+    borderRadius: 22,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -444,6 +572,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(10,24,72,0.06)',
     gap: 12,
+  },
+  rowTablet: {
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 14,
   },
   rowLast: {
     borderBottomWidth: 0,
@@ -456,21 +589,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rowIconTablet: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+  },
   rowCopy: {
     flex: 1,
+    minWidth: 0,
   },
   rowLabel: {
-    fontSize: 15,
     fontWeight: '600',
     color: AUTH_BLUE,
   },
   rowCaption: {
-    marginTop: 2,
-    fontSize: 12,
+    marginTop: 3,
     color: 'rgba(18,20,26,0.5)',
   },
-  signOut: {
+  deleteAccount: {
     marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(180,35,24,0.35)',
+  },
+  deleteAccountTablet: {
+    marginTop: 28,
+    paddingVertical: 18,
+    borderRadius: 16,
+    gap: 10,
+  },
+  deleteAccountText: {
+    fontWeight: '600',
+    color: '#B42318',
+  },
+  signOut: {
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -479,8 +638,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: 'rgba(180,35,24,0.08)',
   },
+  signOutTablet: {
+    marginTop: 16,
+    paddingVertical: 18,
+    borderRadius: 16,
+    gap: 10,
+  },
   signOutText: {
-    fontSize: 15,
     fontWeight: '600',
     color: '#B42318',
   },
