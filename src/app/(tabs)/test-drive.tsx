@@ -28,6 +28,7 @@ import {
   type OfferGroup,
   type OfferSort,
 } from '@/data/offers';
+import { requireAuth } from '@/lib/require-auth';
 import {
   createRideFromBooking,
   driveTimeToApi,
@@ -38,8 +39,8 @@ import {
 } from '@/data/scheduledRides';
 import { ApiError, fetchOffers, fetchTestDrives, submitTestDrive } from '@/lib/api';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
-const PAD = 20;
 const SCROLL_THRESHOLD = 8;
 
 type DriveMode = 'scheduled' | 'new';
@@ -76,6 +77,7 @@ function asTestDriveModel(offer: Offer): Offer {
 export default function TestDriveScreen() {
   const { show, hide } = useTabBarVisibility();
   const { profile } = useUserProfile();
+  const { columns, gutter, isTablet, fs, lh } = useBreakpoint();
   const lastY = useRef(0);
   const [mode, setMode] = useState<DriveMode>('scheduled');
   const [query, setQuery] = useState('');
@@ -163,9 +165,9 @@ export default function TestDriveScreen() {
         throw new Error('This model is not available to book yet.');
       }
       const guestPhone = booking.guestPhone;
-      const customerPhone = guestPhone || phone;
+      const customerPhone = guestPhone || booking.bookerPhone || phone;
       if (!isValidIndianMobile(customerPhone)) {
-        throw new Error('Add your mobile number on your profile before booking.');
+        throw new Error('Add your mobile number before booking.');
       }
       const customerName = booking.guestName || profile?.name.trim() || 'Customer';
       await submitTestDrive({
@@ -175,13 +177,15 @@ export default function TestDriveScreen() {
         location: booking.location,
         scheduledDate: date.iso,
         scheduledTime: driveTimeToApi(time),
+        service: booking.service,
+        guestName: booking.guestName,
+        guestPhone: booking.guestPhone,
+        referredByPhone: guestPhone ? phone || booking.bookerPhone : null,
       });
       const ride = createRideFromBooking(bookingOffer, date, time, booking);
-      if (isValidIndianMobile(phone) && !guestPhone) {
-        setUpcoming(await fetchTestDrives(phone));
-      } else if (isValidIndianMobile(phone)) {
-        const rides = await fetchTestDrives(phone);
-        setUpcoming([ride, ...rides]);
+      const accountPhone = booking.bookerPhone || phone;
+      if (isValidIndianMobile(accountPhone)) {
+        setUpcoming(await fetchTestDrives(accountPhone));
       } else {
         setUpcoming((prev) => [ride, ...prev]);
       }
@@ -190,16 +194,29 @@ export default function TestDriveScreen() {
     [bookingOffer, phone, profile?.name],
   );
 
+  const openBooking = useCallback(
+    (item: Offer) => {
+      if (!requireAuth(profile, 'Sign in first to book a test drive.')) {
+        return;
+      }
+      setBookingOffer(item);
+    },
+    [profile],
+  );
+
   const renderModel = useCallback(
     ({ item }: { item: Offer }) => (
-      <OfferListCard
-        offer={item}
-        ctaLabel="Book test drive"
-        showLikedBadge={false}
-        onPress={() => setBookingOffer(item)}
-      />
+      <View style={columns > 1 ? styles.gridCell : undefined}>
+        <OfferListCard
+          offer={item}
+          compact={columns > 1}
+          ctaLabel="Book test drive"
+          showLikedBadge={false}
+          onPress={() => openBooking(item)}
+        />
+      </View>
     ),
-    [],
+    [columns, openBooking],
   );
 
   const advancedActive = body !== 'All' || sort !== 'featured';
@@ -209,8 +226,8 @@ export default function TestDriveScreen() {
   };
 
   const modeTabs = (
-    <View style={styles.modeWrap}>
-      <View style={styles.modeSegment}>
+    <View style={[styles.modeWrap, { paddingHorizontal: gutter }]}>
+      <View style={[styles.modeSegment, isTablet && styles.modeSegmentTablet]}>
         {MODE_TABS.map((tab) => {
           const active = mode === tab.id;
           return (
@@ -219,9 +236,17 @@ export default function TestDriveScreen() {
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               onPress={() => setMode(tab.id)}
-              style={[styles.modeItem, active && styles.modeItemActive]}>
+              style={[
+                styles.modeItem,
+                active && styles.modeItemActive,
+                isTablet && { paddingVertical: 14 },
+              ]}>
               <Text
-                style={[styles.modeText, active && styles.modeTextActive]}
+                style={[
+                  styles.modeText,
+                  active && styles.modeTextActive,
+                  { fontSize: fs(15), lineHeight: lh(15, 1.3) },
+                ]}
                 numberOfLines={1}>
                 {tab.label}
               </Text>
@@ -234,10 +259,15 @@ export default function TestDriveScreen() {
 
   const bookFilters = (
     <View style={styles.controls}>
-      <View style={styles.panel}>
-        <View style={[styles.search, searchFocused && styles.searchFocused]}>
-          <View style={styles.searchIcon}>
-            <Ionicons name="search" size={15} color={AUTH_BLUE} />
+      <View style={[styles.panel, isTablet && styles.panelTablet]}>
+        <View
+          style={[
+            styles.search,
+            searchFocused && styles.searchFocused,
+            isTablet && { minHeight: 54 },
+          ]}>
+          <View style={[styles.searchIcon, isTablet && styles.searchIconTablet]}>
+            <Ionicons name="search" size={fs(16)} color={AUTH_BLUE} />
           </View>
           <TextInput
             value={query}
@@ -246,7 +276,7 @@ export default function TestDriveScreen() {
             onBlur={() => setSearchFocused(false)}
             placeholder="Search by model"
             placeholderTextColor="rgba(10,24,72,0.35)"
-            style={styles.searchInput}
+            style={[styles.searchInput, { fontSize: fs(16), lineHeight: lh(16, 1.3) }]}
             returnKeyType="search"
             clearButtonMode="while-editing"
           />
@@ -256,7 +286,7 @@ export default function TestDriveScreen() {
               hitSlop={8}
               accessibilityLabel="Clear search"
               style={styles.clearBtn}>
-              <Ionicons name="close" size={14} color={AUTH_BLUE} />
+              <Ionicons name="close" size={fs(14)} color={AUTH_BLUE} />
             </Pressable>
           ) : null}
         </View>
@@ -268,8 +298,17 @@ export default function TestDriveScreen() {
               <Pressable
                 key={f.id}
                 onPress={() => setGroup(f.id)}
-                style={[styles.segmentItem, active && styles.segmentItemActive]}>
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                style={[
+                  styles.segmentItem,
+                  active && styles.segmentItemActive,
+                  isTablet && { paddingVertical: 12 },
+                ]}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    active && styles.segmentTextActive,
+                    { fontSize: fs(14) },
+                  ]}>
                   {f.label}
                 </Text>
               </Pressable>
@@ -283,18 +322,18 @@ export default function TestDriveScreen() {
           onPress={() => setAdvancedOpen((v) => !v)}
           style={styles.advancedToggle}>
           <View style={styles.advancedLeft}>
-            <Text style={styles.advancedLabel}>Advanced</Text>
+            <Text style={[styles.advancedLabel, { fontSize: fs(14) }]}>Advanced</Text>
             {advancedActive ? (
               <View style={styles.advancedBadge}>
-                <Text style={styles.advancedBadgeText}>On</Text>
+                <Text style={[styles.advancedBadgeText, { fontSize: fs(11) }]}>On</Text>
               </View>
             ) : (
-              <Text style={styles.advancedHint}>Body · Availability</Text>
+              <Text style={[styles.advancedHint, { fontSize: fs(13) }]}>Body · Availability</Text>
             )}
           </View>
           <Ionicons
             name={advancedOpen ? 'chevron-up' : 'chevron-down'}
-            size={15}
+            size={fs(16)}
             color="rgba(10,24,72,0.55)"
           />
         </Pressable>
@@ -302,7 +341,7 @@ export default function TestDriveScreen() {
         {advancedOpen ? (
           <View style={styles.advancedPanel}>
             <View style={styles.advancedBlock}>
-              <Text style={styles.advancedHeading}>Body type</Text>
+              <Text style={[styles.advancedHeading, { fontSize: fs(12) }]}>Body type</Text>
               <View style={styles.wrapChips}>
                 {BODY_FILTERS.map((f) => {
                   const active = body === f.id;
@@ -310,8 +349,17 @@ export default function TestDriveScreen() {
                     <Pressable
                       key={f.id}
                       onPress={() => setBody(f.id)}
-                      style={[styles.softChip, active && styles.softChipActive]}>
-                      <Text style={[styles.softChipText, active && styles.softChipTextActive]}>
+                      style={[
+                        styles.softChip,
+                        active && styles.softChipActive,
+                        isTablet && styles.softChipTablet,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.softChipText,
+                          active && styles.softChipTextActive,
+                          { fontSize: fs(14) },
+                        ]}>
                         {f.label}
                       </Text>
                     </Pressable>
@@ -323,7 +371,7 @@ export default function TestDriveScreen() {
             <View style={styles.advancedDivider} />
 
             <View style={styles.advancedBlock}>
-              <Text style={styles.advancedHeading}>Sort by</Text>
+              <Text style={[styles.advancedHeading, { fontSize: fs(12) }]}>Sort by</Text>
               <View style={styles.wrapChips}>
                 {DRIVE_SORT_OPTIONS.map((f) => {
                   const active = sort === f.id;
@@ -331,8 +379,17 @@ export default function TestDriveScreen() {
                     <Pressable
                       key={f.id}
                       onPress={() => setSort(f.id)}
-                      style={[styles.softChip, active && styles.softChipActive]}>
-                      <Text style={[styles.softChipText, active && styles.softChipTextActive]}>
+                      style={[
+                        styles.softChip,
+                        active && styles.softChipActive,
+                        isTablet && styles.softChipTablet,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.softChipText,
+                          active && styles.softChipTextActive,
+                          { fontSize: fs(14) },
+                        ]}>
                         {f.label}
                       </Text>
                     </Pressable>
@@ -343,7 +400,7 @@ export default function TestDriveScreen() {
 
             {advancedActive ? (
               <Pressable onPress={clearAdvanced} style={styles.resetBtn} hitSlop={6}>
-                <Text style={styles.resetText}>Reset filters</Text>
+                <Text style={[styles.resetText, { fontSize: fs(13) }]}>Reset filters</Text>
               </Pressable>
             ) : null}
           </View>
@@ -361,7 +418,10 @@ export default function TestDriveScreen() {
           onScroll={onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            { paddingHorizontal: gutter, paddingBottom: isTablet ? 140 : 120 },
+          ]}
           bounces>
           {loadingRides && upcoming.length === 0 ? (
             <ActivityIndicator color={AUTH_BLUE} style={styles.ridesLoading} />
@@ -375,26 +435,33 @@ export default function TestDriveScreen() {
         </ScrollView>
       ) : (
         <FlatList
+          key={`drive-${columns}`}
           data={results}
           keyExtractor={(item) => item.id}
           renderItem={renderModel}
+          extraData={profile}
+          numColumns={columns}
+          columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
           ListHeaderComponent={bookFilters}
           onScroll={onScroll}
           scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
+          contentContainerStyle={[
+            styles.list,
+            { paddingHorizontal: gutter, paddingBottom: isTablet ? 140 : 120 },
+          ]}
+          ItemSeparatorComponent={columns > 1 ? undefined : () => <View style={styles.sep} />}
           ListEmptyComponent={
             <View style={styles.empty}>
               {loadingModels ? (
                 <ActivityIndicator color={AUTH_BLUE} />
               ) : (
                 <>
-                  <Text style={styles.emptyTitle}>
+                  <Text style={[styles.emptyTitle, { fontSize: fs(17), lineHeight: lh(17, 1.3) }]}>
                     {modelError ? 'Models unavailable' : 'No models match'}
                   </Text>
-                  <Text style={styles.emptyBody}>
+                  <Text style={[styles.emptyBody, { fontSize: fs(14), lineHeight: lh(14, 1.4) }]}>
                     {modelError ?? 'Try another search or clear advanced filters.'}
                   </Text>
                 </>
@@ -423,7 +490,6 @@ const styles = StyleSheet.create({
     marginTop: 48,
   },
   modeWrap: {
-    paddingHorizontal: PAD,
     paddingTop: 4,
     paddingBottom: 10,
     backgroundColor: SCREEN_BG,
@@ -440,6 +506,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
+  modeSegmentTablet: {
+    borderRadius: 14,
+    padding: 5,
+  },
   modeItem: {
     flex: 1,
     alignItems: 'center',
@@ -452,7 +522,6 @@ const styles = StyleSheet.create({
     backgroundColor: AUTH_BLUE,
   },
   modeText: {
-    fontSize: 12,
     fontWeight: '700',
     color: 'rgba(10,24,72,0.45)',
     letterSpacing: -0.15,
@@ -474,6 +543,11 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
+  },
+  panelTablet: {
+    borderRadius: 18,
+    padding: 16,
+    gap: 12,
   },
   search: {
     flexDirection: 'row',
@@ -498,9 +572,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  searchIconTablet: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+  },
   searchInput: {
     flex: 1,
-    fontSize: 15,
     fontWeight: '500',
     color: AUTH_BLUE,
     paddingVertical: 10,
@@ -532,7 +610,6 @@ const styles = StyleSheet.create({
     backgroundColor: AUTH_BLUE,
   },
   segmentText: {
-    fontSize: 13,
     fontWeight: '700',
     color: 'rgba(10,24,72,0.45)',
     letterSpacing: -0.1,
@@ -554,13 +631,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   advancedLabel: {
-    fontSize: 13,
     fontWeight: '700',
     color: AUTH_BLUE,
     letterSpacing: -0.1,
   },
   advancedHint: {
-    fontSize: 12,
     color: 'rgba(10,24,72,0.35)',
     fontWeight: '500',
   },
@@ -571,7 +646,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,24,72,0.08)',
   },
   advancedBadgeText: {
-    fontSize: 10,
     fontWeight: '800',
     color: AUTH_BLUE,
     letterSpacing: 0.3,
@@ -593,7 +667,6 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   advancedHeading: {
-    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
@@ -610,11 +683,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: SCREEN_BG,
   },
+  softChipTablet: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   softChipActive: {
     backgroundColor: 'rgba(10,24,72,0.1)',
   },
   softChipText: {
-    fontSize: 12,
     fontWeight: '600',
     color: 'rgba(10,24,72,0.55)',
   },
@@ -627,14 +703,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   resetText: {
-    fontSize: 12,
     fontWeight: '700',
     color: AUTH_BLUE,
   },
   list: {
-    paddingHorizontal: PAD,
     paddingTop: 2,
-    paddingBottom: 120,
+  },
+  columnWrap: {
+    gap: 14,
+    marginBottom: 20,
+    justifyContent: 'flex-start',
+  },
+  gridCell: {
+    width: '48.5%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   sep: {
     height: 20,
@@ -644,13 +727,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 16,
     fontWeight: '700',
     color: AUTH_BLUE,
     marginBottom: 6,
   },
   emptyBody: {
-    fontSize: 13,
     color: '#8B90A0',
     textAlign: 'center',
   },

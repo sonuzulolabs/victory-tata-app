@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AUTH_BLUE } from '@/constants/brand';
 import { useTabBarVisibility } from '@/context/tab-bar-visibility';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
 type TabRoute = { key: string; name: string };
 type TabBarProps = {
@@ -63,6 +64,7 @@ const HIDE_DISTANCE = 110;
 export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const { visible, show } = useTabBarVisibility();
+  const { tabBarMaxWidth, isTablet, fs } = useBreakpoint();
   const [layouts, setLayouts] = useState<Record<number, ItemLayout>>({});
   const indicatorX = useSharedValue(0);
   const indicatorW = useSharedValue(0);
@@ -104,8 +106,23 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
   return (
     <Animated.View
       pointerEvents="box-none"
-      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 14) }, wrapStyle]}>
-      <View style={styles.pill}>
+      style={[
+        styles.wrap,
+        {
+          paddingBottom: Math.max(insets.bottom, isTablet ? 18 : 14),
+          paddingHorizontal: isTablet ? 32 : 20,
+        },
+        wrapStyle,
+      ]}>
+      <View
+        style={[
+          styles.pill,
+          {
+            maxWidth: tabBarMaxWidth,
+            minHeight: isTablet ? 72 : 64,
+            paddingHorizontal: isTablet ? 14 : 10,
+          },
+        ]}>
         <Animated.View style={[styles.indicator, indicatorStyle]} />
 
         {state.routes.map((route, i) => {
@@ -135,18 +152,29 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
               accessibilityLabel={meta.label}
               onPress={onPress}
               onLayout={onItemLayout(i)}
-              style={[styles.item, focused ? styles.itemActive : styles.itemIdle]}>
-              <View style={[styles.chip, focused && styles.chipActive]}>
+              style={[
+                styles.item,
+                focused ? styles.itemActive : styles.itemIdle,
+                !focused && isTablet && styles.itemIdleTablet,
+                { minHeight: isTablet ? 64 : 56 },
+              ]}>
+              <View
+                style={[
+                  styles.chip,
+                  focused && styles.chipActive,
+                  focused && isTablet && styles.chipActiveTablet,
+                  { minHeight: isTablet ? 52 : 44 },
+                ]}>
                 <Ionicons
                   name={focused ? meta.iconActive : meta.icon}
-                  size={20}
+                  size={fs(20)}
                   color={focused ? AUTH_BLUE : 'rgba(255,255,255,0.9)'}
                 />
                 {focused ? (
                   <Animated.Text
                     entering={FadeIn.duration(220)}
                     exiting={FadeOut.duration(140)}
-                    style={styles.label}
+                    style={[styles.label, { fontSize: fs(13) }]}
                     numberOfLines={1}>
                     {meta.label}
                   </Animated.Text>
@@ -167,7 +195,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   pill: {
     flexDirection: 'row',
@@ -175,7 +202,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     minHeight: 64,
     width: '100%',
-    maxWidth: 420,
     paddingHorizontal: 10,
     borderRadius: 999,
     backgroundColor: AUTH_BLUE,
@@ -212,6 +238,9 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
   },
+  itemIdleTablet: {
+    width: 64,
+  },
   itemActive: {
     flexGrow: 0,
     flexShrink: 0,
@@ -222,7 +251,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    minHeight: 44,
     paddingHorizontal: 6,
   },
   chipActive: {
@@ -230,9 +258,13 @@ const styles = StyleSheet.create({
     minWidth: 112,
     maxWidth: 148,
   },
+  chipActiveTablet: {
+    paddingHorizontal: 18,
+    minWidth: 132,
+    maxWidth: 180,
+  },
   label: {
     color: AUTH_BLUE,
-    fontSize: 13,
     fontWeight: '700',
   },
 });

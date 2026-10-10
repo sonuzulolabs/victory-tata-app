@@ -3,24 +3,35 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AUTH_BLUE } from '@/constants/brand';
 import type { HomeOffer } from '@/data/homeOffers';
+import { formatPromoInLakhs } from '@/data/offers';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
 export const OFFER_CARD_WIDTH = 176;
+export const OFFER_CARD_WIDTH_TABLET = 248;
 
 type Props = {
   offer: HomeOffer;
   onPress?: () => void;
   imageHeight?: number;
+  width?: number;
 };
 
-export function OfferCard({ offer, onPress, imageHeight = 104 }: Props) {
+export function OfferCard({ offer, onPress, imageHeight = 104, width = OFFER_CARD_WIDTH }: Props) {
+  const { isTablet, fs, lh } = useBreakpoint();
+  const promoLine = formatPromoInLakhs(offer.promoTitle);
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={offer.promoTitle}
+      accessibilityLabel={promoLine}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.92 : 1 }]}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText} numberOfLines={1}>
+      style={({ pressed }) => [
+        styles.card,
+        isTablet && styles.cardTablet,
+        { width, opacity: pressed ? 0.92 : 1 },
+      ]}>
+      <View style={[styles.badge, isTablet && styles.badgeTablet]}>
+        <Text style={[styles.badgeText, { fontSize: fs(11) }]} numberOfLines={1}>
           {offer.accentLabel}
         </Text>
       </View>
@@ -29,10 +40,19 @@ export function OfferCard({ offer, onPress, imageHeight = 104 }: Props) {
         style={[styles.image, { height: imageHeight }]}
         contentFit="contain"
       />
-      <Text style={styles.title} numberOfLines={2}>
-        {offer.promoTitle}
+      <Text
+        style={[
+          styles.title,
+          {
+            fontSize: fs(14),
+            lineHeight: lh(14, 1.3),
+            minHeight: lh(14, 1.3) * 2,
+          },
+        ]}
+        numberOfLines={2}>
+        {promoLine}
       </Text>
-      <Text style={styles.meta} numberOfLines={1}>
+      <Text style={[styles.meta, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]} numberOfLines={1}>
         {offer.validNote}
       </Text>
     </Pressable>
@@ -41,11 +61,15 @@ export function OfferCard({ offer, onPress, imageHeight = 104 }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    width: OFFER_CARD_WIDTH,
     borderRadius: 22,
     padding: 14,
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
+  },
+  cardTablet: {
+    borderRadius: 24,
+    padding: 18,
+    paddingBottom: 16,
   },
   badge: {
     alignSelf: 'flex-start',
@@ -56,8 +80,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     maxWidth: '100%',
   },
+  badgeTablet: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: 10,
+  },
   badgeText: {
-    fontSize: 11,
     fontWeight: '700',
     color: AUTH_BLUE,
   },
@@ -66,15 +94,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    fontSize: 14,
     fontWeight: '700',
     color: '#12141A',
-    lineHeight: 18,
     marginBottom: 3,
-    minHeight: 36,
   },
   meta: {
-    fontSize: 12,
     color: '#8B90A0',
   },
 });

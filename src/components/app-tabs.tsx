@@ -5,14 +5,24 @@ import { AppHeader } from '@/components/app-header';
 import { FloatingTabBar } from '@/components/floating-tab-bar';
 import { SCREEN_BG } from '@/constants/brand';
 import { TabBarVisibilityProvider } from '@/context/tab-bar-visibility';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
 const openProfile = () => router.push('/profile');
 
 /** Shared tabs shell for native + web. */
 export default function AppTabs() {
+  const { contentMaxWidth, isTablet } = useBreakpoint();
+
   return (
     <TabBarVisibilityProvider>
-      <View style={styles.root}>
+      <View
+        style={[
+          styles.root,
+          {
+            maxWidth: contentMaxWidth,
+            paddingHorizontal: isTablet ? 8 : 0,
+          },
+        ]}>
         <Tabs
           initialRouteName="home"
           tabBar={(props) => <FloatingTabBar {...props} />}
@@ -47,7 +57,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-    maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
   },

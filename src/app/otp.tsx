@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import Animated, {
@@ -23,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AUTH_BLUE, CinematicBackdrop } from '@/components/cinematic-backdrop';
 import { useUserProfile } from '@/context/user-profile';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { phoneAuthErrorMessage } from '@/lib/phone-auth-error';
 import { confirmPhoneOtp, sendPhoneOtp, subscribePhoneUser } from '@/lib/phone-auth';
 import { formatPhoneInput, phoneDigits } from '@/lib/phone';
@@ -32,7 +32,7 @@ const OTP_LENGTH = 6;
 export default function OtpScreen() {
   const { signInWithPhone } = useUserProfile();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, contentMaxWidth, isTablet, fs, lh } = useBreakpoint();
   const params = useLocalSearchParams<{ phone?: string }>();
   const phone = phoneDigits(typeof params.phone === 'string' ? params.phone : '');
   const displayPhone = useMemo(() => {
@@ -143,7 +143,7 @@ export default function OtpScreen() {
   }));
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { maxWidth: contentMaxWidth }]}>
       <CinematicBackdrop />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
@@ -160,15 +160,28 @@ export default function OtpScreen() {
       <Animated.View pointerEvents="none" style={[styles.logoWrap, { top: insets.top + 56 }, logoAnim]}>
         <Image
           source={require('../../assets/images/logo-victory-tata.png')}
-          style={styles.logo}
+          style={[styles.logo, isTablet && styles.logoTablet]}
           contentFit="contain"
           accessibilityLabel="Victory Tata"
         />
       </Animated.View>
 
-      <Animated.View style={[styles.sheet, sheetAnim, { paddingBottom: Math.max(insets.bottom, 22) }]}>
-        <Text style={styles.title}>Verify OTP</Text>
-        <Text style={styles.subtitle}>We sent a 6-digit code to {displayPhone}</Text>
+      <Animated.View
+        style={[
+          styles.sheet,
+          sheetAnim,
+          {
+            paddingBottom: Math.max(insets.bottom, 22),
+            paddingHorizontal: isTablet ? 40 : 28,
+            maxWidth: isTablet ? 520 : undefined,
+            width: '100%',
+            alignSelf: 'center',
+          },
+        ]}>
+        <Text style={[styles.title, { fontSize: fs(26), lineHeight: lh(26, 1.2) }]}>Verify OTP</Text>
+        <Text style={[styles.subtitle, { fontSize: fs(14), lineHeight: lh(14, 1.4) }]}>
+          We sent a 6-digit code to {displayPhone}
+        </Text>
 
         <Pressable
           accessibilityRole="button"
@@ -179,8 +192,15 @@ export default function OtpScreen() {
             const filled = d.trim().length > 0;
             const active = i === code.length && !complete;
             return (
-              <View key={i} style={[styles.box, active && styles.boxActive, filled && styles.boxFilled]}>
-                <Text style={styles.boxDigit}>{filled ? d : ''}</Text>
+              <View
+                key={i}
+                style={[
+                  styles.box,
+                  active && styles.boxActive,
+                  filled && styles.boxFilled,
+                  isTablet && { width: 52, height: 60, borderRadius: 14 },
+                ]}>
+                <Text style={[styles.boxDigit, { fontSize: fs(22) }]}>{filled ? d : ''}</Text>
               </View>
             );
           })}
@@ -199,7 +219,9 @@ export default function OtpScreen() {
         </Pressable>
 
         {seconds > 0 ? (
-          <Text style={styles.resend}>Resend in 0:{seconds < 10 ? `0${seconds}` : seconds}</Text>
+          <Text style={[styles.resend, { fontSize: fs(13) }]}>
+            Resend in 0:{seconds < 10 ? `0${seconds}` : seconds}
+          </Text>
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -214,11 +236,11 @@ export default function OtpScreen() {
               });
             }}
             style={styles.resendBtn}>
-            <Text style={styles.resendAction}>Resend code</Text>
+            <Text style={[styles.resendAction, { fontSize: fs(13) }]}>Resend code</Text>
           </Pressable>
         )}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { fontSize: fs(13) }]}>{error}</Text> : null}
 
         <Pressable
           accessibilityRole="button"
@@ -227,13 +249,16 @@ export default function OtpScreen() {
           onPress={() => void verify(code)}
           style={({ pressed }) => [
             styles.cta,
+            isTablet && { minHeight: 56 },
             { opacity: !complete ? 0.4 : pressed ? 0.88 : 1 },
           ]}>
-          <Text style={styles.ctaLabel}>{checking ? 'Checking…' : 'Continue'}</Text>
+          <Text style={[styles.ctaLabel, { fontSize: fs(16) }]}>
+            {checking ? 'Checking…' : 'Continue'}
+          </Text>
         </Pressable>
 
         <Pressable accessibilityRole="button" onPress={goBack} style={styles.change}>
-          <Text style={styles.changeLabel}>Change number</Text>
+          <Text style={[styles.changeLabel, { fontSize: fs(13) }]}>Change number</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -244,7 +269,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: AUTH_BLUE,
-    maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
     overflow: 'hidden',
@@ -275,6 +299,10 @@ const styles = StyleSheet.create({
   logo: {
     width: 200,
     height: 64,
+  },
+  logoTablet: {
+    width: 260,
+    height: 80,
   },
   sheet: {
     zIndex: 3,

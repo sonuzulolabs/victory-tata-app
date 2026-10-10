@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AUTH_BLUE } from '@/constants/brand';
 import { useLikedOffers } from '@/context/liked-offers';
-import { getOfferImage, type Offer } from '@/data/offers';
+import { formatPromoInLakhs, getOfferImage, type Offer } from '@/data/offers';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
 /** Distinct blue shades for top-right offer badges. */
 const BADGE_BLUES: Record<string, string> = {
@@ -24,6 +25,8 @@ type Props = {
   ctaLabel?: string;
   /** When false, never show the Liked badge (e.g. test-drive catalog). */
   showLikedBadge?: boolean;
+  /** Compact card for tablet multi-column grids (layout only — fonts stay large). */
+  compact?: boolean;
 };
 
 export function OfferListCard({
@@ -31,52 +34,90 @@ export function OfferListCard({
   onPress,
   ctaLabel = 'Explore offers',
   showLikedBadge = true,
+  compact = false,
 }: Props) {
   const { isLiked } = useLikedOffers();
+  const { isTablet, fs, lh } = useBreakpoint();
   const liked = showLikedBadge && isLiked(offer.id);
+  const promoLine = formatPromoInLakhs(offer.promoTitle);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${offer.kicker} ${offer.promoTitle}`}
+      accessibilityLabel={`${offer.kicker} ${promoLine}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.97 : 1 }]}>
-      <View style={styles.body}>
+      style={({ pressed }) => [
+        styles.card,
+        compact && styles.cardCompact,
+        isTablet && styles.cardTablet,
+        { opacity: pressed ? 0.97 : 1 },
+      ]}>
+      <View style={[styles.body, compact && styles.bodyCompact, isTablet && styles.bodyTablet]}>
         <View style={styles.studioTop}>
           <View style={styles.headline}>
-            <Text style={styles.kicker}>{offer.kicker}</Text>
-            <Text style={styles.price} numberOfLines={2}>
-              {offer.promoTitle}
+            <Text style={[styles.kicker, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]}>
+              {offer.kicker}
+            </Text>
+            <Text
+              style={[
+                styles.price,
+                {
+                  fontSize: fs(compact && isTablet ? 24 : 28),
+                  lineHeight: lh(compact && isTablet ? 24 : 28, 1.15),
+                },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}>
+              {promoLine}
             </Text>
           </View>
           <View style={styles.badges}>
             {liked ? (
-              <View style={styles.likedBadge}>
-                <Ionicons name="heart" size={11} color="#E11D48" />
-                <Text style={styles.likedBadgeText}>Liked</Text>
+              <View style={[styles.likedBadge, isTablet && styles.badgePadTablet]}>
+                <Ionicons name="heart" size={fs(11)} color="#E11D48" />
+                <Text style={[styles.likedBadgeText, { fontSize: fs(11) }]}>Liked</Text>
               </View>
             ) : null}
-            <View style={[styles.badge, { backgroundColor: badgeBlue(offer.badge) }]}>
-              <Text style={styles.badgeText}>{offer.badge}</Text>
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: badgeBlue(offer.badge) },
+                isTablet && styles.badgePadTablet,
+              ]}>
+              <Text style={[styles.badgeText, { fontSize: fs(11) }]}>{offer.badge}</Text>
             </View>
           </View>
         </View>
 
-        <Image source={getOfferImage(offer)} style={styles.car} contentFit="contain" />
+        <Image
+          source={getOfferImage(offer)}
+          style={[
+            styles.car,
+            compact && styles.carCompact,
+            isTablet && !compact && styles.carTablet,
+            isTablet && compact && styles.carTabletCompact,
+          ]}
+          contentFit="contain"
+        />
 
         <View style={styles.meta}>
-          <Text style={styles.modelLine} numberOfLines={1}>
+          <Text
+            style={[styles.modelLine, { fontSize: fs(12), lineHeight: lh(12, 1.35) }]}
+            numberOfLines={1}>
             {offer.modelLine}
           </Text>
-          <Text style={styles.powertrain} numberOfLines={1}>
+          <Text
+            style={[styles.powertrain, { fontSize: fs(12), lineHeight: lh(12, 1.35) }]}
+            numberOfLines={1}>
             {offer.powertrain}
           </Text>
         </View>
       </View>
 
-      <View style={styles.foot}>
-        <View style={styles.cta}>
-          <Text style={styles.ctaText}>{ctaLabel}</Text>
+      <View style={[styles.foot, compact && styles.footCompact, isTablet && styles.footTablet]}>
+        <View style={[styles.cta, isTablet && styles.ctaTablet]}>
+          <Text style={[styles.ctaText, { fontSize: fs(15) }]}>{ctaLabel}</Text>
         </View>
       </View>
     </Pressable>
@@ -95,11 +136,25 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
+    flex: 1,
+  },
+  cardCompact: {
+    borderRadius: 20,
+  },
+  cardTablet: {
+    borderRadius: 26,
   },
   body: {
     backgroundColor: '#FFFFFF',
     paddingTop: 18,
     paddingBottom: 10,
+  },
+  bodyCompact: {
+    paddingTop: 16,
+  },
+  bodyTablet: {
+    paddingTop: 22,
+    paddingBottom: 12,
   },
   studioTop: {
     flexDirection: 'row',
@@ -112,15 +167,12 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   kicker: {
-    fontSize: 12,
     fontWeight: '600',
     color: 'rgba(15,23,42,0.55)',
     letterSpacing: 0.2,
   },
   price: {
     marginTop: 6,
-    fontSize: 28,
-    lineHeight: 34,
     fontWeight: '800',
     letterSpacing: -0.6,
     color: AUTH_BLUE,
@@ -141,7 +193,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(225,29,72,0.1)',
   },
   likedBadgeText: {
-    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.3,
     color: '#E11D48',
@@ -151,8 +202,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 10,
   },
+  badgePadTablet: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
   badgeText: {
-    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.6,
     color: '#FFFFFF',
@@ -162,6 +216,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     marginTop: -2,
+  },
+  carCompact: {
+    height: 168,
+  },
+  carTablet: {
+    height: 240,
+  },
+  carTabletCompact: {
+    height: 190,
   },
   meta: {
     flexDirection: 'row',
@@ -174,12 +237,10 @@ const styles = StyleSheet.create({
   },
   modelLine: {
     flex: 1,
-    fontSize: 12,
     color: 'rgba(15,23,42,0.5)',
   },
   powertrain: {
     flexShrink: 0,
-    fontSize: 12,
     fontWeight: '700',
     color: AUTH_BLUE,
   },
@@ -191,6 +252,14 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(15,23,42,0.06)',
   },
+  footCompact: {
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  footTablet: {
+    paddingTop: 16,
+    paddingBottom: 18,
+  },
   cta: {
     backgroundColor: AUTH_BLUE,
     borderRadius: 12,
@@ -199,9 +268,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
+  ctaTablet: {
+    minHeight: 56,
+    borderRadius: 14,
+  },
   ctaText: {
     color: '#FFFFFF',
-    fontSize: 15,
     fontWeight: '700',
     letterSpacing: -0.1,
   },

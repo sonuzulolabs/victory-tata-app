@@ -22,6 +22,7 @@ import Animated, {
 import { WalletPassQr } from '@/components/wallet-pass-qr';
 import { AUTH_BLUE, SCREEN_BG } from '@/constants/brand';
 import type { ScheduledRide } from '@/data/scheduledRides';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 
 type Props = {
   rides: ScheduledRide[];
@@ -304,30 +305,41 @@ function PassTicket({
   onLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const dateLine = `${ride.weekday} ${ride.day} ${ride.month}`;
+  const { fs, lh, isTablet } = useBreakpoint();
 
   return (
     <View style={[styles.ticket, { backgroundColor: tone }, style]} onLayout={onLayout}>
-      <View style={styles.ticketTop}>
+      <View style={[styles.ticketTop, isTablet && { padding: 22 }]}>
         <View style={styles.titleRow}>
           <View style={styles.titleCopy}>
-            <Text style={styles.brand}>Victory Tata</Text>
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={[styles.brand, { fontSize: fs(12) }]}>Victory Tata</Text>
+            <Text
+              style={[styles.title, { fontSize: fs(22), lineHeight: lh(22, 1.2) }]}
+              numberOfLines={2}>
               {ride.vehicleName}
             </Text>
           </View>
-          <Image source={ride.image} style={styles.thumb} contentFit="contain" />
+          <Image
+            source={ride.image}
+            style={[styles.thumb, isTablet && { width: 110, height: 72 }]}
+            contentFit="contain"
+          />
         </View>
 
         <View style={styles.metaGrid}>
           <View style={styles.metaCol}>
-            <Text style={styles.metaLabel}>Timing</Text>
-            <Text style={styles.metaValue}>{dateLine}</Text>
-            <Text style={styles.metaSub}>{ride.time}</Text>
+            <Text style={[styles.metaLabel, { fontSize: fs(11) }]}>Timing</Text>
+            <Text style={[styles.metaValue, { fontSize: fs(16), lineHeight: lh(16, 1.25) }]}>
+              {dateLine}
+            </Text>
+            <Text style={[styles.metaSub, { fontSize: fs(14) }]}>{ride.time}</Text>
           </View>
           <View style={styles.metaCol}>
-            <Text style={styles.metaLabel}>Venue</Text>
-            <Text style={styles.metaValue}>{ride.meet}</Text>
-            <Text style={styles.metaSub} numberOfLines={2}>
+            <Text style={[styles.metaLabel, { fontSize: fs(11) }]}>Venue</Text>
+            <Text style={[styles.metaValue, { fontSize: fs(16), lineHeight: lh(16, 1.25) }]}>
+              {ride.meet}
+            </Text>
+            <Text style={[styles.metaSub, { fontSize: fs(14) }]} numberOfLines={2}>
               {ride.location}
             </Text>
           </View>
@@ -344,16 +356,16 @@ function PassTicket({
         <View style={[styles.notch, styles.notchRight]} />
       </View>
 
-      <View style={styles.ticketBottom}>
-        <Text style={styles.scanLabel}>Scan code at entrance</Text>
+      <View style={[styles.ticketBottom, isTablet && { padding: 22 }]}>
+        <Text style={[styles.scanLabel, { fontSize: fs(12) }]}>Scan code at entrance</Text>
         <View style={styles.qrPad}>
-          <WalletPassQr seed={ride.id} size={168} />
+          <WalletPassQr seed={ride.id} size={isTablet ? 196 : 168} />
         </View>
         <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Upcoming</Text>
+          <View style={[styles.badge, isTablet && { paddingHorizontal: 14, paddingVertical: 8 }]}>
+            <Text style={[styles.badgeText, { fontSize: fs(11) }]}>Upcoming</Text>
           </View>
-          <Text style={styles.licence}>Bring a valid licence</Text>
+          <Text style={[styles.licence, { fontSize: fs(12) }]}>Bring a valid licence</Text>
         </View>
       </View>
     </View>
@@ -361,19 +373,27 @@ function PassTicket({
 }
 
 function EmptyState({ onBookPress }: { onBookPress?: () => void }) {
+  const { fs, lh, isTablet } = useBreakpoint();
+
   return (
-    <View style={styles.emptyCard}>
-      <Text style={styles.emptyBrand}>Scheduled rides</Text>
-      <Text style={styles.emptyTitle}>Nothing booked yet</Text>
-      <Text style={styles.emptyBody}>
+    <View style={[styles.emptyCard, isTablet && { padding: 28 }]}>
+      <Text style={[styles.emptyBrand, { fontSize: fs(12) }]}>Scheduled rides</Text>
+      <Text style={[styles.emptyTitle, { fontSize: fs(22), lineHeight: lh(22, 1.25) }]}>
+        Nothing booked yet
+      </Text>
+      <Text style={[styles.emptyBody, { fontSize: fs(14), lineHeight: lh(14, 1.4) }]}>
         Switch to Schedule a new ride to lock a free 45-minute drive.
       </Text>
       {onBookPress ? (
         <Pressable
           accessibilityRole="button"
           onPress={onBookPress}
-          style={({ pressed }) => [styles.emptyCta, { opacity: pressed ? 0.9 : 1 }]}>
-          <Text style={styles.emptyCtaText}>Schedule a new ride</Text>
+          style={({ pressed }) => [
+            styles.emptyCta,
+            isTablet && { minHeight: 52 },
+            { opacity: pressed ? 0.9 : 1 },
+          ]}>
+          <Text style={[styles.emptyCtaText, { fontSize: fs(15) }]}>Schedule a new ride</Text>
         </Pressable>
       ) : null}
     </View>

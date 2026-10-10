@@ -15,24 +15,30 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { OfferCard, OFFER_CARD_WIDTH } from '@/components/offer-card';
-import { AUTH_BLUE, SCREEN_BG } from '@/constants/brand';
+import { OfferCard } from '@/components/offer-card';
+import { AUTH_BLUE, AUTH_BLUE_SOFT, SCREEN_BG } from '@/constants/brand';
 import { useUserProfile } from '@/context/user-profile';
 import { REFER_BANNER, type HomeOffer } from '@/data/homeOffers';
 import { formatInr } from '@/data/referrals';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { ApiError, fetchAccountSummary, fetchHome } from '@/lib/api';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
 
-const PAD = 20;
 const GAP = 12;
+const GAP_COMPACT = 10;
 const TAB_PILL = 64;
-/** Fixed chrome under offer image (badge + title + meta + padding). */
+const STATS_H = 138;
+const STATS_H_COMPACT = 112;
+const OFFERS_CARD_H = 88;
+const OFFERS_CARD_H_COMPACT = 72;
+/** Badge, title, note, and card padding under the car image. */
 const OFFER_CHROME = 118;
-const STATS_H = 124;
+const OFFER_CHROME_COMPACT = 100;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { profile } = useUserProfile();
+  const { profile, refreshFromServer } = useUserProfile();
+  const { isTablet, isCompact, gutter, fs, lh, contentWidth } = useBreakpoint();
   const [bodyH, setBodyH] = useState(0);
   const [offers, setOffers] = useState<HomeOffer[]>([]);
   const [referBanner, setReferBanner] = useState<ImageSourcePropType>(REFER_BANNER);
@@ -42,6 +48,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const phone = mobileDigitsFromStored(profile?.phone ?? '');
+  const gap = isCompact ? GAP_COMPACT : GAP;
 
   useFocusEffect(
     useCallback(() => {
@@ -61,6 +68,8 @@ export default function HomeScreen() {
         .finally(() => {
           if (!cancelled) setLoadingOffers(false);
         });
+
+      void refreshFromServer();
 
       if (!isValidIndianMobile(phone)) {
         setPoints(null);
@@ -86,7 +95,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [phone]),
+    }, [phone, refreshFromServer]),
   );
 
   const homeStats = [
@@ -109,85 +118,163 @@ export default function HomeScreen() {
   ];
 
   const tabClearance = TAB_PILL + Math.max(insets.bottom, 14) + 16;
+  const statsH = isTablet ? 168 : isCompact ? STATS_H_COMPACT : STATS_H;
+  const offersCardH = isTablet ? 100 : isCompact ? OFFERS_CARD_H_COMPACT : OFFERS_CARD_H;
+  /** Wide enough that ~2 car cards fill the first viewport. */
+  const stripInnerW = Math.max(contentWidth - gutter * 2, 260);
+  const offerCardW = Math.floor((stripInnerW - gap) / 2);
+  const offerChrome = isTablet ? 136 : isCompact ? OFFER_CHROME_COMPACT : OFFER_CHROME;
 
   const onBodyLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     setBodyH((prev) => (Math.abs(prev - h) < 1 ? prev : h));
   };
 
-  // Fill the scene above the floating tab bar.
-  // The offer strip keeps the leftover room; quick actions stay a fixed block.
   const usable = Math.max(bodyH - tabClearance - 8, 0);
-  const sectionH = 44;
-  const gaps = 28;
-  const offersCardH = 76;
-  const pairH = usable > 0 ? Math.round(usable * 0.2) : 112;
-  const actionsBlock = offersCardH + GAP + pairH;
-  const offersH = Math.max(usable - STATS_H - sectionH - gaps - actionsBlock, 160);
-  const offerImageH = Math.max(Math.min(offersH - OFFER_CHROME, 148), 96);
+  const pairH = usable > 0
+    ? Math.round(usable * (isTablet ? 0.2 : isCompact ? 0.15 : 0.17))
+    : isCompact ? 96 : 112;
+  const pairMin = isCompact ? 96 : 112;
+  const pairMax = isCompact ? 118 : 160;
+  const pairHeight = Math.min(Math.max(pairH, pairMin), pairMax);
+  const contentH = Math.max(bodyH - 6 - tabClearance, 0);
+  const offersH = Math.max(
+    contentH - statsH - (isCompact ? 10 : 14) - offersCardH - gap - gap - pairHeight,
+    isTablet ? 240 : isCompact ? 160 : 188,
+  );
+  const offerImageH = Math.max(
+    Math.min(offersH - offerChrome, isTablet ? 230 : isCompact ? 132 : 168),
+    isCompact ? 96 : 120,
+  );
 
   return (
-    <View style={[styles.screen, { paddingBottom: tabClearance }]} onLayout={onBodyLayout}>
-      <View style={styles.statsRow}>
+    <View style={styles.screen} onLayout={onBodyLayout}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom: tabClearance,
+            paddingTop: isCompact ? 4 : 6,
+            minHeight: bodyH > 0 ? bodyH : undefined,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        bounces={isCompact}
+        keyboardShouldPersistTaps="handled">
+      <View style={[styles.statsRow, { marginHorizontal: gutter, height: statsH, gap }]}>
         {homeStats.map((stat) => {
           const navy = stat.tone === 'navy';
           return (
-            <View
+            <LinearGradient
               key={stat.id}
               accessibilityLabel={`${stat.label} ${stat.value}`}
-              style={[styles.statCard, navy ? styles.statCardNavy : styles.statCardLight]}>
-              <View style={[styles.statIcon, navy && styles.statIconNavy]}>
-                <Ionicons name={stat.icon} size={16} color={navy ? '#FFFFFF' : AUTH_BLUE} />
+              colors={navy ? [AUTH_BLUE, AUTH_BLUE_SOFT] : ['#FFFFFF', '#F3F6FC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.statCard,
+                navy ? styles.statCardNavy : styles.statCardLight,
+                isTablet && styles.statCardTablet,
+                isCompact && styles.statCardCompact,
+              ]}>
+              <View style={[styles.statOrb, navy ? styles.statOrbNavy : styles.statOrbLight]} />
+              <View style={styles.statTop}>
+                <View
+                  style={[
+                    styles.statIcon,
+                    navy && styles.statIconNavy,
+                    isTablet && styles.statIconTablet,
+                    isCompact && styles.statIconCompact,
+                  ]}>
+                  <Ionicons name={stat.icon} size={fs(15)} color={navy ? '#FFFFFF' : AUTH_BLUE} />
+                </View>
+                <Text
+                  style={[
+                    styles.statLabel,
+                    navy && styles.statLabelNavy,
+                    { fontSize: fs(13), lineHeight: lh(13, 1.25) },
+                  ]}>
+                  {stat.label}
+                </Text>
               </View>
-              <Text style={[styles.statLabel, navy && styles.statLabelNavy]}>{stat.label}</Text>
-              <Text style={[styles.statValue, navy && styles.statValueNavy]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.statValue,
+                  navy && styles.statValueNavy,
+                  isCompact && styles.statValueCompact,
+                  { fontSize: fs(isCompact ? 20 : 24), lineHeight: lh(isCompact ? 20 : 24, 1.15) },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}>
                 {stat.value}
               </Text>
-              <Text style={[styles.statHint, navy && styles.statHintNavy]}>{stat.hint}</Text>
-            </View>
+              <View style={[styles.statHintPill, navy && styles.statHintPillNavy]}>
+                <Text
+                  style={[
+                    styles.statHint,
+                    navy && styles.statHintNavy,
+                    { fontSize: fs(11), lineHeight: lh(11, 1.25) },
+                  ]}>
+                  {stat.hint}
+                </Text>
+              </View>
+            </LinearGradient>
           );
         })}
       </View>
 
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionLeft}>
-          <View style={styles.sectionIcon}>
-            <Ionicons name="pricetag" size={14} color={AUTH_BLUE} />
-          </View>
-          <Text style={styles.sectionTitle}>Offers for you</Text>
-        </View>
+      <View style={[styles.actions, { marginHorizontal: gutter, marginTop: isCompact ? 10 : 14 }]}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Offers for you"
           onPress={() => router.push('/(tabs)/offers')}
-          hitSlop={6}
-          style={({ pressed }) => [styles.viewAllBtn, { opacity: pressed ? 0.75 : 1 }]}>
-          <Text style={styles.viewAll}>View all</Text>
-          <Ionicons name="chevron-forward" size={13} color={AUTH_BLUE} />
+          style={({ pressed }) => [
+            styles.offersCard,
+            isCompact && styles.offersCardCompact,
+            { height: offersCardH, opacity: pressed ? 0.92 : 1 },
+          ]}>
+          <View style={[styles.offersIcon, isTablet && styles.offersIconTablet, isCompact && styles.offersIconCompact]}>
+            <Ionicons name="pricetag" size={fs(18)} color="#FFFFFF" />
+          </View>
+          <View style={styles.offersCopy}>
+            <Text style={[styles.offersTitle, { fontSize: fs(16), lineHeight: lh(16, 1.25) }]} numberOfLines={1}>
+              Offers for you
+            </Text>
+            <Text style={[styles.offersSub, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]} numberOfLines={1}>
+              Exclusive EV & PV deals
+            </Text>
+          </View>
+          <View style={[styles.offersArrow, isCompact && styles.offersArrowCompact]}>
+            <Ionicons name="arrow-forward" size={fs(16)} color={AUTH_BLUE} />
+          </View>
         </Pressable>
       </View>
 
-      <View style={[styles.offerSection, { height: offersH }]}>
+      <View style={[styles.offerSection, { height: offersH, marginTop: gap }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
-          snapToInterval={OFFER_CARD_WIDTH + GAP}
-          contentContainerStyle={styles.offerList}
+          snapToInterval={offerCardW + gap}
+          contentContainerStyle={[styles.offerList, { paddingHorizontal: gutter, gap }]}
           style={styles.offerStrip}>
           {loadingOffers && offers.length === 0 ? (
-            <View style={styles.offerLoading}>
+            <View style={[styles.offerLoading, { width: offerCardW }]}>
               <ActivityIndicator color={AUTH_BLUE} />
             </View>
           ) : null}
           {error && offers.length === 0 ? (
-            <View style={styles.offerLoading}>
-              <Text style={styles.offerError}>{error}</Text>
+            <View style={[styles.offerLoading, { width: offerCardW }]}>
+              <Text style={[styles.offerError, { fontSize: fs(13) }]}>{error}</Text>
             </View>
           ) : null}
           {offers.map((offer) => (
             <OfferCard
               key={offer.id}
               offer={offer}
+              width={offerCardW}
               imageHeight={offerImageH}
               onPress={() =>
                 router.push({
@@ -200,25 +287,12 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Offers"
-          onPress={() => router.push('/(tabs)/offers')}
-          style={({ pressed }) => [styles.offersCard, { height: offersCardH, opacity: pressed ? 0.92 : 1 }]}>
-          <View style={styles.offersIcon}>
-            <Ionicons name="pricetag" size={18} color="#FFFFFF" />
-          </View>
-          <View style={styles.offersCopy}>
-            <Text style={styles.offersTitle}>Offers</Text>
-            <Text style={styles.offersSub}>Exclusive EV & PV deals</Text>
-          </View>
-          <View style={styles.offersArrow}>
-            <Ionicons name="arrow-forward" size={16} color={AUTH_BLUE} />
-          </View>
-        </Pressable>
-
-        <View style={[styles.actionsRow, { height: pairH }]}>
+      <View
+        style={[
+          styles.actionsRow,
+          styles.bottomPair,
+          { height: pairHeight, marginHorizontal: gutter, marginTop: gap, gap },
+        ]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Book a test drive"
@@ -226,20 +300,27 @@ export default function HomeScreen() {
             style={({ pressed }) => [
               styles.actionTile,
               styles.actionTileDrive,
+              isCompact && styles.actionTileDriveCompact,
               { opacity: pressed ? 0.92 : 1 },
             ]}>
-            <View style={styles.driveTop}>
-              <View style={styles.driveIcon}>
-                <Ionicons name="car-sport" size={18} color="#FFFFFF" />
-              </View>
-              <Text style={styles.driveTitle} numberOfLines={2}>
+            <View style={styles.driveFoot}>
+              <Text
+                style={[styles.driveTitle, { fontSize: fs(isCompact ? 14 : 16), lineHeight: lh(isCompact ? 14 : 16, 1.25) }]}
+                numberOfLines={2}>
                 Book a test drive
               </Text>
-              <Text style={styles.driveSub}>At your doorstep, in minutes</Text>
+              {!isCompact ? (
+                <Text style={[styles.driveSub, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]} numberOfLines={1}>
+                  At your doorstep, in minutes
+                </Text>
+              ) : null}
+              <View style={[styles.actionCta, isTablet && styles.actionCtaTablet, isCompact && styles.actionCtaCompact]}>
+                <Text style={[styles.driveCtaText, { fontSize: fs(12) }]}>Schedule</Text>
+                <Ionicons name="arrow-forward" size={fs(14)} color={AUTH_BLUE} />
+              </View>
             </View>
-            <View style={styles.actionCta}>
-              <Text style={styles.driveCtaText}>Schedule</Text>
-              <Ionicons name="arrow-forward" size={14} color={AUTH_BLUE} />
+            <View style={[styles.driveIcon, isTablet && styles.driveIconTablet, isCompact && styles.driveIconCompact]}>
+              <Ionicons name="car-sport" size={fs(18)} color="#FFFFFF" />
             </View>
           </Pressable>
 
@@ -259,17 +340,25 @@ export default function HomeScreen() {
               end={{ x: 1, y: 0.2 }}
               style={StyleSheet.absoluteFill}
             />
-            <View style={styles.referBody}>
-              <Text style={styles.referTitle}>Referrals</Text>
-              <Text style={styles.referSub}>Earn when they buy</Text>
-              <View style={[styles.actionCta, styles.referCta]}>
-                <Text style={styles.referCtaText}>Start</Text>
-                <Ionicons name="arrow-forward" size={14} color={AUTH_BLUE} />
+            <View style={[styles.referBody, isCompact && styles.referBodyCompact]}>
+              <Text
+                style={[styles.referTitle, { fontSize: fs(isCompact ? 14 : 16), lineHeight: lh(isCompact ? 14 : 16, 1.25) }]}
+                numberOfLines={1}>
+                Referrals
+              </Text>
+              {!isCompact ? (
+                <Text style={[styles.referSub, { fontSize: fs(12), lineHeight: lh(12, 1.3) }]} numberOfLines={1}>
+                  Earn when they buy
+                </Text>
+              ) : null}
+              <View style={[styles.actionCta, styles.referCta, isTablet && styles.actionCtaTablet, isCompact && styles.actionCtaCompact]}>
+                <Text style={[styles.referCtaText, { fontSize: fs(12) }]}>Start</Text>
+                <Ionicons name="arrow-forward" size={fs(14)} color={AUTH_BLUE} />
               </View>
             </View>
           </Pressable>
-        </View>
       </View>
+      </ScrollView>
     </View>
   );
 }
@@ -278,131 +367,139 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-    paddingTop: 6,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   statsRow: {
-    marginHorizontal: PAD,
     flexDirection: 'row',
-    gap: GAP,
-    height: STATS_H,
   },
   statCard: {
     flex: 1,
     borderRadius: 22,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
     overflow: 'hidden',
     shadowColor: '#0A1848',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  statCardTablet: {
+    borderRadius: 26,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
+  statCardCompact: {
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   statCardNavy: {
-    backgroundColor: AUTH_BLUE,
+    shadowOpacity: 0.22,
   },
   statCardLight: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: AUTH_BLUE,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(10,24,72,0.12)',
+  },
+  statOrb: {
+    position: 'absolute',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    top: -28,
+    right: -22,
+  },
+  statOrbNavy: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  statOrbLight: {
+    backgroundColor: 'rgba(10,24,72,0.05)',
+  },
+  statTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   statIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(10,24,72,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  statIconTablet: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  statIconCompact: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
   statIconNavy: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   statLabel: {
-    marginTop: 8,
-    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.2,
-    color: 'rgba(10,24,72,0.55)',
+    letterSpacing: 0.1,
+    color: 'rgba(10,24,72,0.62)',
   },
   statLabelNavy: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.82)',
   },
   statValue: {
-    marginTop: 2,
-    fontSize: 22,
+    marginTop: 10,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
     color: AUTH_BLUE,
+  },
+  statValueCompact: {
+    marginTop: 6,
   },
   statValueNavy: {
     color: '#FFFFFF',
   },
-  statHint: {
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#8B90A0',
-  },
-  statHintNavy: {
-    color: 'rgba(255,255,255,0.62)',
-  },
-  sectionHeader: {
-    marginTop: 14,
-    marginHorizontal: PAD,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sectionLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sectionIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    backgroundColor: 'rgba(10,24,72,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: AUTH_BLUE,
-    letterSpacing: -0.3,
-  },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+  statHintPill: {
+    marginTop: 'auto',
+    alignSelf: 'flex-start',
     borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     backgroundColor: 'rgba(10,24,72,0.06)',
   },
-  viewAll: {
-    fontSize: 12,
+  statHintPillNavy: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  statHint: {
     fontWeight: '700',
-    color: AUTH_BLUE,
+    color: 'rgba(10,24,72,0.55)',
+  },
+  statHintNavy: {
+    color: 'rgba(255,255,255,0.88)',
+  },
+  actions: {
+    marginTop: 14,
   },
   offerSection: {
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   offerStrip: {
     flexGrow: 0,
   },
   offerList: {
-    paddingHorizontal: PAD,
-    gap: GAP,
     alignItems: 'stretch',
   },
   offerLoading: {
-    width: OFFER_CARD_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
@@ -413,10 +510,8 @@ const styles = StyleSheet.create({
     color: 'rgba(10,24,72,0.55)',
     textAlign: 'center',
   },
-  actions: {
-    marginTop: 14,
-    marginHorizontal: PAD,
-    gap: GAP,
+  bottomPair: {
+    marginTop: 'auto',
   },
   offersCard: {
     flexDirection: 'row',
@@ -431,6 +526,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
+  offersCardCompact: {
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
   offersIcon: {
     width: 40,
     height: 40,
@@ -439,20 +539,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  offersIconTablet: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  offersIconCompact: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
   offersCopy: {
     flex: 1,
     minWidth: 0,
   },
   offersTitle: {
-    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.2,
     color: '#FFFFFF',
   },
   offersSub: {
     marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
     color: 'rgba(255,255,255,0.72)',
   },
   offersArrow: {
@@ -463,9 +570,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  offersArrowCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   actionsRow: {
     flexDirection: 'row',
-    gap: GAP,
   },
   actionTile: {
     flexGrow: 1,
@@ -482,15 +593,20 @@ const styles = StyleSheet.create({
   actionTileDrive: {
     backgroundColor: '#FFFFFF',
     padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     borderWidth: 1.5,
     borderColor: AUTH_BLUE,
   },
+  actionTileDriveCompact: {
+    padding: 10,
+    borderRadius: 18,
+    gap: 6,
+  },
   actionTileRefer: {
     backgroundColor: AUTH_BLUE,
-  },
-  driveTop: {
-    gap: 8,
   },
   driveIcon: {
     width: 40,
@@ -499,31 +615,53 @@ const styles = StyleSheet.create({
     backgroundColor: AUTH_BLUE,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    flexShrink: 0,
+  },
+  driveIconTablet: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  driveIconCompact: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  driveFoot: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'flex-end',
   },
   driveTitle: {
-    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.2,
     color: AUTH_BLUE,
+    marginBottom: 3,
   },
   driveSub: {
-    fontSize: 12,
-    lineHeight: 16,
     color: '#8B90A0',
+    marginBottom: 12,
   },
   actionCta: {
-    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(10,24,72,0.07)',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
+    backgroundColor: 'rgba(10,24,72,0.08)',
+  },
+  actionCtaTablet: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
+  },
+  actionCtaCompact: {
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   driveCtaText: {
-    fontSize: 12,
     fontWeight: '700',
     color: AUTH_BLUE,
   },
@@ -536,24 +674,23 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 14,
   },
+  referBodyCompact: {
+    padding: 10,
+  },
   referTitle: {
-    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.2,
     color: '#FFFFFF',
     marginBottom: 3,
   },
   referSub: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.75)',
     marginBottom: 12,
   },
   referCta: {
     backgroundColor: '#FFFFFF',
   },
   referCtaText: {
-    fontSize: 12,
     fontWeight: '700',
     color: AUTH_BLUE,
   },

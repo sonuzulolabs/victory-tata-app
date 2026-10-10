@@ -27,16 +27,17 @@ import {
   type OfferGroup,
   type OfferSort,
 } from '@/data/offers';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { ApiError, fetchOffers } from '@/lib/api';
 import { mobileDigitsFromStored } from '@/lib/phone';
 
-const PAD = 20;
 const SCROLL_THRESHOLD = 8;
 
 export default function OffersScreen() {
   const { show, hide } = useTabBarVisibility();
   const { setLiked } = useLikedOffers();
   const { profile } = useUserProfile();
+  const { columns, gutter, isTablet, fs, lh } = useBreakpoint();
   const lastY = useRef(0);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<'All' | OfferGroup>('All');
@@ -97,17 +98,20 @@ export default function OffersScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: Offer }) => (
-      <OfferListCard
-        offer={item}
-        onPress={() =>
-          router.push({
-            pathname: '/offer/[id]',
-            params: { id: item.id },
-          })
-        }
-      />
+      <View style={columns > 1 ? styles.gridCell : undefined}>
+        <OfferListCard
+          offer={item}
+          compact={columns > 1}
+          onPress={() =>
+            router.push({
+              pathname: '/offer/[id]',
+              params: { id: item.id },
+            })
+          }
+        />
+      </View>
     ),
-    [],
+    [columns],
   );
 
   const advancedActive = body !== 'All' || sort !== 'featured';
@@ -130,7 +134,7 @@ export default function OffersScreen() {
             onBlur={() => setSearchFocused(false)}
             placeholder="Search by model or benefit"
             placeholderTextColor="rgba(10,24,72,0.35)"
-            style={styles.searchInput}
+            style={[styles.searchInput, { fontSize: fs(15), lineHeight: lh(15, 1.3), minHeight: isTablet ? 52 : undefined }]}
             returnKeyType="search"
             clearButtonMode="while-editing"
           />
@@ -153,7 +157,7 @@ export default function OffersScreen() {
                 key={f.id}
                 onPress={() => setGroup(f.id)}
                 style={[styles.segmentItem, active && styles.segmentItemActive]}>
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                <Text style={[styles.segmentText, active && styles.segmentTextActive, { fontSize: fs(13) }]}>
                   {f.label}
                 </Text>
               </Pressable>
@@ -167,13 +171,13 @@ export default function OffersScreen() {
           onPress={() => setAdvancedOpen((v) => !v)}
           style={styles.advancedToggle}>
           <View style={styles.advancedLeft}>
-            <Text style={styles.advancedLabel}>Advanced</Text>
+            <Text style={[styles.advancedLabel, { fontSize: fs(13) }]}>Advanced</Text>
             {advancedActive ? (
               <View style={styles.advancedBadge}>
-                <Text style={styles.advancedBadgeText}>On</Text>
+                <Text style={[styles.advancedBadgeText, { fontSize: fs(10) }]}>On</Text>
               </View>
             ) : (
-              <Text style={styles.advancedHint}>Body · Sort</Text>
+              <Text style={[styles.advancedHint, { fontSize: fs(12) }]}>Body · Sort</Text>
             )}
           </View>
           <Ionicons
@@ -239,16 +243,22 @@ export default function OffersScreen() {
   return (
     <View style={styles.screen}>
       <FlatList
+        key={`offers-${columns}`}
         data={results}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
         ListHeaderComponent={listHeader}
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
+        contentContainerStyle={[
+          styles.list,
+          { paddingHorizontal: gutter, paddingBottom: isTablet ? 140 : 120 },
+        ]}
+        ItemSeparatorComponent={columns > 1 ? undefined : () => <View style={styles.sep} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             {loading ? (
@@ -312,7 +322,6 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
     fontWeight: '500',
     color: AUTH_BLUE,
     paddingVertical: 10,
@@ -344,7 +353,6 @@ const styles = StyleSheet.create({
     backgroundColor: AUTH_BLUE,
   },
   segmentText: {
-    fontSize: 13,
     fontWeight: '700',
     color: 'rgba(10,24,72,0.45)',
     letterSpacing: -0.1,
@@ -366,13 +374,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   advancedLabel: {
-    fontSize: 13,
     fontWeight: '700',
     color: AUTH_BLUE,
     letterSpacing: -0.1,
   },
   advancedHint: {
-    fontSize: 12,
     color: 'rgba(10,24,72,0.35)',
     fontWeight: '500',
   },
@@ -383,7 +389,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,24,72,0.08)',
   },
   advancedBadgeText: {
-    fontSize: 10,
     fontWeight: '800',
     color: AUTH_BLUE,
     letterSpacing: 0.3,
@@ -444,9 +449,17 @@ const styles = StyleSheet.create({
     color: AUTH_BLUE,
   },
   list: {
-    paddingHorizontal: PAD,
     paddingTop: 6,
-    paddingBottom: 120,
+  },
+  columnWrap: {
+    gap: 14,
+    marginBottom: 14,
+    justifyContent: 'flex-start',
+  },
+  gridCell: {
+    width: '48.5%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   sep: {
     height: 14,

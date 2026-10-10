@@ -16,11 +16,16 @@ export function phoneAuthErrorMessage(error: unknown): string {
       return 'That code expired. Request a new one.';
     case 'auth/missing-client-identifier':
       return 'This Android build is not registered with Firebase yet.';
+    case 'auth/billing-not-enabled':
+      return 'Phone sign-in needs billing enabled on the Firebase project (Blaze plan). Ask your admin to upgrade in Firebase Console, or use a test phone number while developing.';
     case 'auth/quota-exceeded':
       return 'SMS quota reached. Try again later.';
     case 'auth/network-request-failed':
       return 'Check your connection and try again.';
     default:
+      if (error instanceof Error && /billing-not-enabled/i.test(error.message)) {
+        return 'Phone sign-in needs billing enabled on the Firebase project (Blaze plan). See Firebase Console → Upgrade.';
+      }
       if (error instanceof Error && error.message) return error.message;
       return 'Could not complete phone sign-in.';
   }

@@ -62,4 +62,21 @@ export const Spacing = {
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+
+/** Layout breakpoints (shortest side / window width). 600 catches 7″ tablets. */
+export const Breakpoints = {
+  tablet: 600,
+} as const;
+
+/** Centered column max widths by form factor. */
+export const ContentMaxWidth = {
+  phone: 480,
+  tablet: 840,
+  tabBar: {
+    phone: 420,
+    tablet: 560,
+  },
+} as const;
+
+/** @deprecated Prefer ContentMaxWidth.tablet via useBreakpoint(). */
+export const MaxContentWidth = ContentMaxWidth.tablet;

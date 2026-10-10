@@ -1,6 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
 import { REFER_BANNER, type HomeOffer } from '@/data/homeOffers';
+import { vehicleImage } from '@/data/vehicle-images';
 import type { Offer, OfferBody, OfferGroup, OfferSort } from '@/data/offers';
 import type { Referral } from '@/data/referrals';
 import type { ScheduledRide } from '@/data/scheduledRides';
@@ -9,6 +10,7 @@ import { mediaUrl } from '@/lib/api/config';
 import { mapHomeOffer, mapOffer, mapReferral, mapTestDrive } from '@/lib/api/mappers';
 import type {
   ApiCustomer,
+  ApiDealership,
   ApiHome,
   ApiOffer,
   ApiPoints,
@@ -36,8 +38,18 @@ export type SavedCustomer = {
   name: string;
   phone: string;
   email: string;
+  city: string;
   memberSince: string;
   totalPoints: number;
+};
+
+export type DealershipInfo = {
+  name: string;
+  city: string;
+  line: string;
+  phone: string;
+  phoneDisplay: string;
+  showrooms: { id: string; label: string }[];
 };
 
 const SORT_FILTER: Record<OfferSort, string> = {
@@ -93,10 +105,12 @@ export async function fetchHome(): Promise<{
   referBanner: ImageSourcePropType;
 }> {
   const data = await apiRequest<ApiHome>('/home');
+  const bannerFile = data.refer_banner?.image_url?.split('/').pop()?.split('?')[0] ?? '';
+  const localBanner = vehicleImage(bannerFile);
   const banner = mediaUrl(data.refer_banner?.image_url);
   return {
     offers: (data.offers_for_you ?? []).map(mapHomeOffer),
-    referBanner: banner ? { uri: banner } : REFER_BANNER,
+    referBanner: localBanner ?? (banner ? { uri: banner } : REFER_BANNER),
   };
 }
 
@@ -117,6 +131,7 @@ export async function saveCustomer(input: {
   name: string;
   phone: string;
   email?: string;
+  city?: string;
 }): Promise<SavedCustomer> {
   const data = await apiRequest<ApiCustomer>('/customers', {
     method: 'POST',
@@ -124,9 +139,34 @@ export async function saveCustomer(input: {
       name: input.name,
       phone: input.phone,
       email: input.email || null,
+      city: input.city || null,
     }),
   });
   return mapCustomer(data);
+}
+
+let dealershipRequest: Promise<DealershipInfo> | null = null;
+
+export function fetchDealership(): Promise<DealershipInfo> {
+  if (!dealershipRequest) {
+    dealershipRequest = apiRequest<ApiDealership>('/dealership')
+      .then((data) => ({
+        name: data.name,
+        city: data.city,
+        line: data.line,
+        phone: data.phone,
+        phoneDisplay: data.phone_display,
+        showrooms: (data.showrooms ?? []).map((room) => ({
+          id: room.id,
+          label: room.label,
+        })),
+      }))
+      .catch((error: unknown) => {
+        dealershipRequest = null;
+        throw error;
+      });
+  }
+  return dealershipRequest;
 }
 
 function mapCustomer(data: ApiCustomer): SavedCustomer {
@@ -135,6 +175,7 @@ function mapCustomer(data: ApiCustomer): SavedCustomer {
     name: data.name,
     phone: data.phone,
     email: data.email ?? '',
+    city: data.city ?? '',
     memberSince: data.member_since ?? '',
     totalPoints: data.total_points ?? 0,
   };
@@ -191,6 +232,10 @@ export async function submitTestDrive(input: {
   location: string;
   scheduledDate: string;
   scheduledTime: string;
+  service?: 'instore' | 'concierge';
+  guestName?: string | null;
+  guestPhone?: string | null;
+  referredByPhone?: string | null;
 }): Promise<void> {
   await apiRequest('/test-drives', {
     method: 'POST',
@@ -199,6 +244,10 @@ export async function submitTestDrive(input: {
       customer_phone: input.customerPhone,
       car_id: Number(input.carId),
       location: input.location,
+      service: input.service ?? null,
+      guest_name: input.guestName || null,
+      guest_phone: input.guestPhone || null,
+      referred_by_phone: input.referredByPhone || null,
       scheduled_date: input.scheduledDate,
       scheduled_time: input.scheduledTime,
     }),

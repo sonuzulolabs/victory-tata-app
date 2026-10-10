@@ -55,3 +55,38 @@ export const SORT_OPTIONS: { id: OfferSort; label: string }[] = [
   { id: 'benefit', label: 'Best benefits' },
   { id: 'newest', label: 'Newest' },
 ];
+
+/** Format a rupee amount in Indian lakhs (e.g. 50000 → "₹0.5 Lakh"). */
+export function formatAmountInLakhs(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return `₹${amount}`;
+  const lakhs = amount / 100_000;
+  if (lakhs >= 100) {
+    const crore = lakhs / 100;
+    const rounded = Number.isInteger(crore) ? String(crore) : crore.toFixed(2).replace(/\.?0+$/, '');
+    return `₹${rounded} Cr`;
+  }
+  const rounded =
+    lakhs >= 10
+      ? (Number.isInteger(lakhs) ? String(lakhs) : lakhs.toFixed(1).replace(/\.0$/, ''))
+      : Number.isInteger(lakhs)
+        ? String(lakhs)
+        : lakhs.toFixed(2).replace(/\.?0+$/, '');
+  return `₹${rounded} Lakh`;
+}
+
+/**
+ * Rewrite money figures inside promo copy to lakhs form.
+ * e.g. "Up to ₹50,000" / "Up to 50000" → "Up to ₹0.5 Lakh"
+ */
+export function formatPromoInLakhs(text: string): string {
+  if (!text) return text;
+
+  return text.replace(
+    /(?:₹\s*)?(\d{1,3}(?:,\d{2,3})+|\d{4,})(?:\s*\/\-)?/g,
+    (match, raw: string) => {
+      const amount = Number(String(raw).replace(/,/g, ''));
+      if (!Number.isFinite(amount) || amount < 1000) return match;
+      return formatAmountInLakhs(amount);
+    },
+  );
+}

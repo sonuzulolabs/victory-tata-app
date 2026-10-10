@@ -21,6 +21,7 @@ type UserProfileContextValue = {
   signInWithPhone: (phone10: string) => void;
   signInWithGoogle: (account: { name: string; email: string }) => void;
   updateProfile: (patch: Partial<Pick<UserProfile, 'name' | 'phone' | 'email' | 'city'>>) => void;
+  refreshFromServer: () => Promise<void>;
   signOut: () => void;
   isFieldLocked: (field: 'name' | 'phone' | 'email') => boolean;
 };
@@ -32,6 +33,14 @@ export function initialsFromName(name: string) {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Initials only after Google sign-in with a name. Otherwise the app shows a profile icon. */
+export function googleInitials(profile: UserProfile | null): string | null {
+  if (profile?.authMethod !== 'google') return null;
+  const name = profile.name.trim();
+  if (!name) return null;
+  return initialsFromName(name);
 }
 
 function formatPhoneDisplay(phone10: string) {
@@ -46,6 +55,7 @@ function mergeServerCustomer(prev: UserProfile, customer: SavedCustomer): UserPr
     ...prev,
     name: prev.name.trim() || usableName,
     email: prev.email.trim() || customer.email,
+    city: customer.city || prev.city,
     memberSince: customer.memberSince || prev.memberSince,
   };
 }
@@ -64,6 +74,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
           name: localName,
           phone,
           email: next.email.trim() || undefined,
+          city: next.city.trim() || undefined,
         });
         setProfile((prev) => (prev ? mergeServerCustomer(prev, saved) : prev));
         return;
@@ -78,6 +89,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             name: 'Customer',
             phone,
             email: next.email.trim() || undefined,
+            city: next.city.trim() || undefined,
           });
           setProfile((prev) => (prev ? mergeServerCustomer(prev, saved) : prev));
         }
@@ -133,6 +145,28 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     [syncCustomer],
   );
 
+  const refreshFromServer = useCallback(async () => {
+    const phone = mobileDigitsFromStored(profile?.phone ?? '');
+    if (!isValidIndianMobile(phone)) return;
+    try {
+      const customer = await fetchCustomer(phone);
+      setProfile((prev) => {
+        if (!prev) return prev;
+        const serverName = customer.name.trim();
+        const usableName = serverName && serverName.toLowerCase() !== 'customer' ? serverName : '';
+        return {
+          ...prev,
+          name: usableName || prev.name,
+          email: customer.email || prev.email,
+          city: customer.city || prev.city,
+          memberSince: customer.memberSince || prev.memberSince,
+        };
+      });
+    } catch {
+      // Keep the session already on the phone.
+    }
+  }, [profile?.phone]);
+
   const signOut = useCallback(() => {
     setProfile(null);
     void signOutPhoneAuth();
@@ -155,10 +189,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       signInWithPhone,
       signInWithGoogle,
       updateProfile,
+      refreshFromServer,
       signOut,
       isFieldLocked,
     }),
-    [profile, signInWithPhone, signInWithGoogle, updateProfile, signOut, isFieldLocked],
+    [profile, signInWithPhone, signInWithGoogle, updateProfile, refreshFromServer, signOut, isFieldLocked],
   );
 
   return <UserProfileContext.Provider value={value}>{children}</UserProfileContext.Provider>;

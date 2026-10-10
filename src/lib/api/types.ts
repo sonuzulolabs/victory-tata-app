@@ -46,8 +46,27 @@ export type ApiCustomer = {
   name: string;
   phone: string;
   email: string | null;
+  city: string | null;
   total_points: number;
   member_since: string | null;
+};
+
+export type ApiShowroom = {
+  id: string;
+  label: string;
+  address: string;
+  city: string;
+  phone: string | null;
+  phone_display: string | null;
+};
+
+export type ApiDealership = {
+  name: string;
+  city: string;
+  line: string;
+  phone: string;
+  phone_display: string;
+  showrooms: ApiShowroom[];
 };
 
 export type ApiReferral = {
@@ -65,6 +84,9 @@ export type ApiTestDrive = {
   car: string;
   image_url?: string | null;
   location: string;
+  service?: 'instore' | 'concierge' | null;
+  guest_name?: string | null;
+  guest_phone?: string | null;
   scheduled_date: string;
   scheduled_time: string;
   status: string;

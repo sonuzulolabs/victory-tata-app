@@ -104,6 +104,8 @@ export type DriveBooking = {
   location: string;
   guestName: string | null;
   guestPhone: string | null;
+  /** Set when the booker entered their own number in this form. */
+  bookerPhone: string | null;
 };
 
 export function createRideFromBooking(

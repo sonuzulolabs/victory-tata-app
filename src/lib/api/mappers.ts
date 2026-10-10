@@ -2,6 +2,7 @@ import type { ImageSourcePropType } from 'react-native';
 
 import type { HomeOffer } from '@/data/homeOffers';
 import { FALLBACK_VEHICLE, type Offer, type OfferBody, type OfferGroup } from '@/data/offers';
+import { vehicleImage } from '@/data/vehicle-images';
 import {
   formatApiTime,
   rideDateParts,
@@ -24,11 +25,16 @@ function asBody(value: string | null): OfferBody {
   return BODIES.includes(value as OfferBody) ? (value as OfferBody) : 'SUV';
 }
 
+function imageFrom(url: string | null | undefined): ImageSourcePropType | null {
+  const file = url?.split('/').pop()?.split('?')[0] ?? '';
+  const local = vehicleImage(file);
+  if (local) return local;
+  const remote = mediaUrl(url);
+  return remote ? { uri: remote } : null;
+}
+
 function galleryFrom(urls: string[]): ImageSourcePropType[] {
-  const images = urls
-    .map((url) => mediaUrl(url))
-    .filter((url): url is string => Boolean(url))
-    .map((uri) => ({ uri }));
+  const images = urls.map((url) => imageFrom(url)).filter((image): image is ImageSourcePropType => Boolean(image));
   return images.length > 0 ? images : [FALLBACK_VEHICLE];
 }
 
@@ -68,13 +74,12 @@ export function mapHomeOffer(raw: {
   valid_note: string | null;
   image_url: string | null;
 }): HomeOffer {
-  const uri = mediaUrl(raw.image_url);
   return {
     id: String(raw.id),
     accentLabel: raw.accent_label || 'Offer',
     promoTitle: raw.promo_title || 'Offer',
     validNote: raw.valid_note || '',
-    image: uri ? { uri } : FALLBACK_VEHICLE,
+    image: imageFrom(raw.image_url) ?? FALLBACK_VEHICLE,
   };
 }
 
@@ -113,8 +118,8 @@ const UPCOMING = new Set(['pending', 'confirmed']);
 export function mapTestDrive(raw: ApiTestDrive): ScheduledRide | null {
   if (!UPCOMING.has(raw.status)) return null;
   const date = rideDateParts(raw.scheduled_date);
-  const uri = mediaUrl(raw.image_url);
-  const showroom = /victory|showroom/i.test(raw.location);
+  const showroom =
+    raw.service === 'instore' || (!raw.service && /victory|showroom/i.test(raw.location));
   return {
     id: String(raw.id),
     vehicleName: raw.car,
@@ -125,6 +130,8 @@ export function mapTestDrive(raw: ApiTestDrive): ScheduledRide | null {
     time: formatApiTime(raw.scheduled_time),
     meet: showroom ? 'Showroom' : 'Doorstep',
     status: 'Upcoming',
-    image: uri ? { uri } : FALLBACK_VEHICLE,
+    image: imageFrom(raw.image_url) ?? FALLBACK_VEHICLE,
+    guestName: raw.guest_name || null,
+    guestPhone: raw.guest_phone || null,
   };
 }

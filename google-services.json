@@ -22,6 +22,22 @@
           }
         },
         {
+          "client_id": "235759569190-nvuj3uku2vet7m9nmr96anq5ah05qsb7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zulolabs.victorytata",
+            "certificate_hash": "2af6d0ed29565f364a30d56a0a060de5612a2ab0"
+          }
+        },
+        {
+          "client_id": "235759569190-pu2j13oer3jr0dn9oe72hbhtv8fadc5g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zulolabs.victorytata",
+            "certificate_hash": "005575cb2fbe8afaf07f31b035e60c8d02cb8532"
+          }
+        },
+        {
           "client_id": "235759569190-bh0t7dnf1gr1c4rqju25k8b036usec4h.apps.googleusercontent.com",
           "client_type": 3
         }

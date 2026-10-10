@@ -1,5 +1,5 @@
-/** Victory CRM on Hostinger. Override with EXPO_PUBLIC_API_URL if the host changes. */
-const DEFAULT_API_ORIGIN = 'https://purple-manatee-599622.hostingersite.com';
+/** Local Victory CRM. Override with EXPO_PUBLIC_API_URL if the host changes. */
+const DEFAULT_API_ORIGIN = 'http://127.0.0.1:8000';
 
 /** Origin the app calls, without a path. */
 export function apiOrigin(): string {

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AUTH_BLUE, AUTH_BLUE_SOFT, SCREEN_BG } from '@/constants/brand';
 import { useUserProfile } from '@/context/user-profile';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import {
   formatPhoneDisplay,
   formatPhoneInput,
@@ -119,12 +120,14 @@ function MobileField({
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { contentMaxWidth, gutter, isTablet } = useBreakpoint();
   const { profile, updateProfile, isFieldLocked } = useUserProfile();
 
   const [name, setName] = useState('');
   /** 10-digit mobile formatted as "98765 43210" (no +91). */
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
+  const [city, setCity] = useState('');
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [phoneError, setPhoneError] = useState<string | undefined>();
 
@@ -133,6 +136,7 @@ export default function EditProfileScreen() {
     setName(profile.name);
     setMobile(formatPhoneInput(mobileDigitsFromStored(profile.phone)));
     setEmail(profile.email);
+    setCity(profile.city);
     setPhoneTouched(false);
     setPhoneError(undefined);
   }, [profile]);
@@ -160,7 +164,7 @@ export default function EditProfileScreen() {
 
   const save = () => {
     if (!profile) return;
-    const patch: { name?: string; phone?: string; email?: string } = {};
+    const patch: { name?: string; phone?: string; email?: string; city?: string } = {};
 
     if (!isFieldLocked('name')) patch.name = name.trim();
     if (!isFieldLocked('phone')) {
@@ -173,6 +177,7 @@ export default function EditProfileScreen() {
       patch.phone = digits.length === 10 ? formatPhoneDisplay(digits) : '';
     }
     if (!isFieldLocked('email')) patch.email = email.trim();
+    patch.city = city.trim();
 
     updateProfile(patch);
     goBack();
@@ -186,8 +191,8 @@ export default function EditProfileScreen() {
 
   if (!profile) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
+      <View style={[styles.root, { paddingTop: insets.top, maxWidth: contentMaxWidth }]}>
+        <View style={[styles.header, { paddingHorizontal: gutter }]}>
           <Pressable onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={20} color={AUTH_BLUE} />
           </Pressable>
@@ -204,8 +209,8 @@ export default function EditProfileScreen() {
   const isGoogle = profile.authMethod === 'google';
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
+    <View style={[styles.root, { paddingTop: insets.top, maxWidth: contentMaxWidth }]}>
+      <View style={[styles.header, { paddingHorizontal: gutter }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
@@ -222,7 +227,16 @@ export default function EditProfileScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          {
+            paddingBottom: insets.bottom + 28,
+            paddingHorizontal: gutter,
+            maxWidth: isTablet ? 640 : undefined,
+            width: '100%',
+            alignSelf: 'center',
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <Text style={styles.hint}>
@@ -231,25 +245,31 @@ export default function EditProfileScreen() {
             : 'Add your name and email. Your verified mobile number cannot be changed.'}
         </Text>
 
-        <View style={styles.formCard}>
+        <View style={[styles.formCard, isTablet && styles.formCardTablet]}>
           {!isGoogle ? (
             <>
-              <EditField
-                label="Full name"
-                value={name}
-                onChangeText={setName}
-                locked={false}
-                placeholder="Your name"
-              />
-              <EditField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                locked={false}
-                keyboardType="email-address"
-                placeholder="you@email.com"
-                autoCapitalize="none"
-              />
+              <View style={isTablet ? styles.fieldRow : undefined}>
+                <View style={isTablet ? styles.fieldHalf : undefined}>
+                  <EditField
+                    label="Full name"
+                    value={name}
+                    onChangeText={setName}
+                    locked={false}
+                    placeholder="Your name"
+                  />
+                </View>
+                <View style={isTablet ? styles.fieldHalf : undefined}>
+                  <EditField
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    locked={false}
+                    keyboardType="email-address"
+                    placeholder="you@email.com"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
             </>
           ) : (
             <MobileField
@@ -261,23 +281,37 @@ export default function EditProfileScreen() {
             />
           )}
 
+          <EditField
+            label="City"
+            value={city}
+            onChangeText={setCity}
+            locked={false}
+            placeholder="Tirupur"
+          />
+
           {isGoogle ? (
             <>
-              <EditField
-                label="Full name"
-                value={name}
-                onChangeText={setName}
-                locked
-                placeholder=""
-              />
-              <EditField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                locked
-                placeholder=""
-                autoCapitalize="none"
-              />
+              <View style={isTablet ? styles.fieldRow : undefined}>
+                <View style={isTablet ? styles.fieldHalf : undefined}>
+                  <EditField
+                    label="Full name"
+                    value={name}
+                    onChangeText={setName}
+                    locked
+                    placeholder=""
+                  />
+                </View>
+                <View style={isTablet ? styles.fieldHalf : undefined}>
+                  <EditField
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    locked
+                    placeholder=""
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
             </>
           ) : (
             <MobileField
@@ -309,14 +343,12 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-    maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
     gap: 12,
@@ -355,7 +387,6 @@ const styles = StyleSheet.create({
     width: 40,
   },
   scroll: {
-    paddingHorizontal: 20,
     paddingTop: 16,
   },
   hint: {
@@ -372,6 +403,18 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(10,24,72,0.08)',
     gap: 4,
+  },
+  formCardTablet: {
+    padding: 20,
+    gap: 8,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  fieldHalf: {
+    flex: 1,
+    minWidth: 0,
   },
   fieldBlock: {
     marginBottom: 12,
