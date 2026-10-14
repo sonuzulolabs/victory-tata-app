@@ -315,7 +315,7 @@ export default function EditProfileScreen() {
             </>
           ) : (
             <MobileField
-              value={formatPhoneInput(mobileDigitsFromStored(profile.phone))}
+              value={mobile}
               onChangeText={() => {}}
               locked
             />

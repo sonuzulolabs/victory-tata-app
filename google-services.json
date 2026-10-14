@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "235759569190-a8fb3cc76skiolie77mblha8hds8iolj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zulolabs.victorytata",
+            "certificate_hash": "bb166a12e371197922f24e95f332e12bea37905d"
+          }
+        },
+        {
           "client_id": "235759569190-elpved1m4ijjldn27qmtanvugt5j317i.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -38,6 +46,14 @@
           }
         },
         {
+          "client_id": "235759569190-t7dgh57107ldcbtjefrjrdfp9t4bj877.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zulolabs.victorytata",
+            "certificate_hash": "9ec4487ba09119179ba961027d6af738b8e42b11"
+          }
+        },
+        {
           "client_id": "235759569190-bh0t7dnf1gr1c4rqju25k8b036usec4h.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -53,6 +69,13 @@
             {
               "client_id": "235759569190-bh0t7dnf1gr1c4rqju25k8b036usec4h.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "235759569190-0aej33kjjmgfulbvpt9p01nct69nahut.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zulolabs.victorytata"
+              }
             }
           ]
         }

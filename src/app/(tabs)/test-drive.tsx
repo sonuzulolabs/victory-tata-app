@@ -37,9 +37,12 @@ import {
   type DriveTimeOption,
   type ScheduledRide,
 } from '@/data/scheduledRides';
+import { useInstantTracking } from '@/context/instant-tracking';
 import { ApiError, fetchOffers, fetchTestDrives, submitTestDrive } from '@/lib/api';
+import { submitInstantTestDrive } from '@/lib/api/testing';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useRefreshControl } from '@/hooks/use-refresh-control';
 
 const SCROLL_THRESHOLD = 8;
 
@@ -94,42 +97,48 @@ export default function TestDriveScreen() {
   const [bookingOffer, setBookingOffer] = useState<Offer | null>(null);
 
   const phone = mobileDigitsFromStored(profile?.phone ?? '');
+  const {
+    setActiveFromBooking,
+    refresh: refreshInstantTracking,
+    syncPushTokenForPhone,
+  } = useInstantTracking();
+
+  const reloadTestDrive = useCallback(async () => {
+    setLoadingRides(true);
+    if (isValidIndianMobile(phone)) {
+      try {
+        const rides = await fetchTestDrives(phone);
+        setUpcoming(rides);
+      } catch {
+        setUpcoming([]);
+      } finally {
+        setLoadingRides(false);
+      }
+      await refreshInstantTracking();
+    } else {
+      setUpcoming([]);
+      setLoadingRides(false);
+    }
+
+    setLoadingModels(true);
+    try {
+      const offers = await fetchOffers({ query, group, body, sort });
+      setResults(offers.map(asTestDriveModel));
+      setModelError(null);
+    } catch (err: unknown) {
+      setModelError(err instanceof ApiError ? err.message : 'Could not load models.');
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [body, group, phone, query, refreshInstantTracking, sort]);
+
+  const { refreshControl } = useRefreshControl(reloadTestDrive);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoadingRides(true);
-      if (isValidIndianMobile(phone)) {
-        void fetchTestDrives(phone)
-          .then((rides) => {
-            if (!cancelled) setUpcoming(rides);
-          })
-          .catch(() => {
-            if (!cancelled) setUpcoming([]);
-          })
-          .finally(() => {
-            if (!cancelled) setLoadingRides(false);
-          });
-      } else {
-        setUpcoming([]);
-        setLoadingRides(false);
-      }
-
       const handle = setTimeout(() => {
-        setLoadingModels(true);
-        void fetchOffers({ query, group, body, sort })
-          .then((offers) => {
-            if (cancelled) return;
-            setResults(offers.map(asTestDriveModel));
-            setModelError(null);
-          })
-          .catch((err: unknown) => {
-            if (cancelled) return;
-            setModelError(err instanceof ApiError ? err.message : 'Could not load models.');
-          })
-          .finally(() => {
-            if (!cancelled) setLoadingModels(false);
-          });
+        if (!cancelled) void reloadTestDrive();
       }, query.trim() ? 300 : 0);
 
       return () => {
@@ -137,7 +146,7 @@ export default function TestDriveScreen() {
         clearTimeout(handle);
         show();
       };
-    }, [body, group, phone, query, show, sort]),
+    }, [query, reloadTestDrive, show]),
   );
 
   const onScroll = useCallback(
@@ -170,6 +179,24 @@ export default function TestDriveScreen() {
         throw new Error('Add your mobile number before booking.');
       }
       const customerName = booking.guestName || profile?.name.trim() || 'Customer';
+
+      if (booking.scheduleMode === 'now') {
+        await syncPushTokenForPhone(customerPhone);
+        const instant = await submitInstantTestDrive({
+          customerName,
+          customerPhone,
+          carId: bookingOffer.carId,
+          address: booking.location,
+        });
+        setActiveFromBooking(instant);
+        void refreshInstantTracking();
+        const ride = createRideFromBooking(bookingOffer, date, time, {
+          ...booking,
+          service: 'concierge',
+        });
+        return ride;
+      }
+
       await submitTestDrive({
         customerName,
         customerPhone,
@@ -415,6 +442,7 @@ export default function TestDriveScreen() {
 
       {mode === 'scheduled' ? (
         <ScrollView
+          refreshControl={refreshControl}
           onScroll={onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
@@ -443,6 +471,7 @@ export default function TestDriveScreen() {
           numColumns={columns}
           columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
           ListHeaderComponent={bookFilters}
+          refreshControl={refreshControl}
           onScroll={onScroll}
           scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"

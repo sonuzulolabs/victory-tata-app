@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EtaTopChip } from '@/components/eta-top-chip';
 import { AUTH_BLUE, SCREEN_BG } from '@/constants/brand';
 import { googleInitials, useUserProfile } from '@/context/user-profile';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
@@ -61,17 +62,20 @@ export function AppHeader({ title, onPressProfile, onPressMenu }: Props) {
           {title}
         </Text>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open menu"
-          hitSlop={8}
-          onPress={onPressMenu}
-          style={({ pressed }) => [
-            styles.iconBtn,
-            { width: iconBox, height: iconBox, opacity: pressed ? 0.7 : 1 },
-          ]}>
-          <Ionicons name="menu" size={fs(26)} color={AUTH_BLUE} />
-        </Pressable>
+        <View style={styles.trailing}>
+          <EtaTopChip />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            hitSlop={8}
+            onPress={onPressMenu}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              { width: iconBox, height: iconBox, opacity: pressed ? 0.7 : 1 },
+            ]}>
+            <Ionicons name="menu" size={fs(26)} color={AUTH_BLUE} />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -83,6 +87,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  trailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '42%',
+    justifyContent: 'flex-end',
   },
   iconBtn: {
     alignItems: 'center',

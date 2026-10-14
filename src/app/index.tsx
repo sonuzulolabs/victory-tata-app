@@ -33,7 +33,7 @@ import { formatPhoneInput, phoneDigits } from '@/lib/phone';
 const FORM_MIN_HEIGHT = 420;
 
 export default function LoginScreen() {
-  const { signInWithGoogle } = useUserProfile();
+  const { signInWithGoogle, profile, sessionReady } = useUserProfile();
   const insets = useSafeAreaInsets();
   const { width, height, contentMaxWidth, isTablet, fs, lh } = useBreakpoint();
   const [phone, setPhone] = useState('');
@@ -78,6 +78,12 @@ export default function LoginScreen() {
     closedTop.value = layout.sheetClosedTop;
     openTop.value = layout.sheetOpenTop;
   }, [layout.sheetClosedTop, layout.sheetOpenTop, closedTop, openTop]);
+
+  useEffect(() => {
+    if (sessionReady && profile) {
+      router.replace('/(tabs)/home');
+    }
+  }, [sessionReady, profile]);
 
   const continueIn = async () => {
     const digits = phoneDigits(phone);

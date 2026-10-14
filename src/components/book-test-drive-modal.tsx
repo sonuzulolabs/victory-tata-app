@@ -26,6 +26,7 @@ import {
   driveServiceLabel,
   type DriveBooking,
   type DriveDateOption,
+  type DriveScheduleMode,
   type DriveService,
   type DriveTimeOption,
   type ScheduledRide,
@@ -91,6 +92,7 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
   const { profile, updateProfile } = useUserProfile();
   const [keyboardPad, setKeyboardPad] = useState(0);
   const [step, setStep] = useState<Step>('book');
+  const [scheduleMode, setScheduleMode] = useState<DriveScheduleMode>('scheduled');
   const [date, setDate] = useState<DriveDateOption>(DRIVE_DATE_OPTIONS[0]);
   const [time, setTime] = useState<DriveTimeOption>(DRIVE_TIME_OPTIONS[1]);
   const [service, setService] = useState<DriveService | null>(null);
@@ -108,6 +110,7 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
   useEffect(() => {
     if (visible) {
       setStep('book');
+      setScheduleMode('scheduled');
       setDate(DRIVE_DATE_OPTIONS[0]);
       setTime(DRIVE_TIME_OPTIONS[1]);
       setService(null);
@@ -122,6 +125,12 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
       setError(null);
     }
   }, [visible, offer?.id]);
+
+  useEffect(() => {
+    if (scheduleMode === 'now') {
+      setService('concierge');
+    }
+  }, [scheduleMode]);
 
   useEffect(() => {
     if (!visible) return;
@@ -221,7 +230,15 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
   const ownReady = !needsOwnPhone || isValidIndianMobile(ownDigits);
   const guestReady =
     !forSomeoneElse || (guestName.trim().length >= 2 && isValidIndianMobile(guestDigits));
-  const canConfirm = Boolean(service && location && guestReady && ownReady);
+  const isNow = scheduleMode === 'now';
+  const canConfirm = isNow
+    ? Boolean(
+        service === 'concierge' &&
+          conciergeAddress.trim().length >= 5 &&
+          guestReady &&
+          ownReady,
+      )
+    : Boolean(service && location && guestReady && ownReady);
 
   const handleConfirm = async () => {
     if (!profile) {
@@ -240,13 +257,25 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
         updateProfile({ phone: formatPhoneDisplay(ownDigits) });
       }
       const booked = await onConfirm(date, time, {
-        service,
-        location,
+        scheduleMode,
+        service: isNow ? 'concierge' : service!,
+        location: isNow ? conciergeAddress.trim() : location,
         guestName: forSomeoneElse ? guestName.trim() : null,
         guestPhone: forSomeoneElse ? guestDigits : null,
         bookerPhone: needsOwnPhone ? ownDigits : null,
       });
-      setRide(booked);
+      setRide(
+        isNow
+          ? {
+              ...booked,
+              weekday: 'Today',
+              day: '',
+              month: '',
+              time: 'Now',
+              meet: 'Doorstep',
+            }
+          : booked,
+      );
       setStep('done');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not book this test drive.');
@@ -377,7 +406,47 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
                     </View>
                   </View>
                 ) : null}
-                <Text style={[styles.sectionLabel, needsOwnPhone && styles.sectionGap, { fontSize: fs(14) }]}>Date</Text>
+                <Text style={[styles.sectionLabel, needsOwnPhone && styles.sectionGap, { fontSize: fs(14) }]}>
+                  When
+                </Text>
+                <View style={styles.timeRow}>
+                  {(
+                    [
+                      { id: 'scheduled' as const, label: 'Pick date & time' },
+                      { id: 'now' as const, label: 'Present time' },
+                    ] as const
+                  ).map((option) => {
+                    const active = scheduleMode === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        onPress={() => {
+                          setScheduleMode(option.id);
+                          if (option.id === 'now') {
+                            setService('concierge');
+                            setShowroomId(null);
+                          }
+                        }}
+                        style={[styles.timeChip, active && styles.timeChipActive, styles.whenChip]}>
+                        <Text
+                          style={[styles.timeText, active && styles.timeTextActive, { fontSize: fs(14) }]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {isNow ? (
+                  <Text style={[styles.nowHint, { fontSize: fs(13), lineHeight: lh(13, 1.4) }]}>
+                    Concierge only — we will send live arrival updates to your phone.
+                  </Text>
+                ) : null}
+
+                {!isNow ? (
+                <>
+                <Text style={[styles.sectionLabel, styles.sectionGap, { fontSize: fs(14) }]}>Date</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -433,10 +502,12 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
                     );
                   })}
                 </View>
+                </>
+                ) : null}
 
                 <Text style={[styles.sectionLabel, styles.sectionGap, { fontSize: fs(14) }]}>Service</Text>
                 <View style={styles.serviceList}>
-                  {SERVICE_OPTIONS.map((option) => {
+                  {(isNow ? SERVICE_OPTIONS.filter((o) => o.id === 'concierge') : SERVICE_OPTIONS).map((option) => {
                     const active = service === option.id;
                     return (
                       <Pressable
@@ -508,7 +579,7 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
                   </View>
                 ) : null}
 
-                {service === 'concierge' ? (
+                {service === 'concierge' || isNow ? (
                   <View ref={addressRef} collapsable={false}>
                     <Text style={[styles.sectionLabel, styles.sectionGap, { fontSize: fs(14) }]}>Address</Text>
                     <TextInput
@@ -615,9 +686,11 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
                 Test drive confirmed
               </Text>
               <Text style={[styles.doneBodyText, { fontSize: fs(15), lineHeight: lh(15, 1.4) }]}>
-                {ride.guestName
-                  ? `Booked for ${ride.guestName}.`
-                  : `Your ${offer.kicker} ${service ? driveServiceLabel(service).toLowerCase() : ''} slot is locked. Bring a valid licence.`}
+                {scheduleMode === 'now'
+                  ? 'Concierge is on the way. Watch the ETA chip (top right) and push alerts until we arrive.'
+                  : ride.guestName
+                    ? `Booked for ${ride.guestName}.`
+                    : `Your ${offer.kicker} ${service ? driveServiceLabel(service).toLowerCase() : ''} slot is locked. Bring a valid licence.`}
               </Text>
 
               <View style={styles.ticket}>
@@ -629,7 +702,9 @@ export function BookTestDriveModal({ visible, offer, onClose, onConfirm }: Props
                     {ride.vehicleName}
                   </Text>
                   <Text style={[styles.ticketWhen, { fontSize: fs(14) }]}>
-                    {ride.weekday} {ride.day} {ride.month} · {ride.time}
+                    {scheduleMode === 'now'
+                      ? `${ride.weekday} · ${ride.time}`
+                      : `${ride.weekday} ${ride.day} ${ride.month} · ${ride.time}`}
                   </Text>
                   <Text
                     style={[styles.ticketWhere, { fontSize: fs(13), lineHeight: lh(13, 1.35) }]}
@@ -859,6 +934,14 @@ const styles = StyleSheet.create({
   timeTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  whenChip: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  nowHint: {
+    marginTop: 8,
+    color: 'rgba(10,24,72,0.55)',
   },
   serviceList: {
     gap: 8,

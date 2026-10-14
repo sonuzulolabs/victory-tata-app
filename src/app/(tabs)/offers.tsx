@@ -28,6 +28,7 @@ import {
   type OfferSort,
 } from '@/data/offers';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useRefreshControl } from '@/hooks/use-refresh-control';
 import { ApiError, fetchOffers } from '@/lib/api';
 import { mobileDigitsFromStored } from '@/lib/phone';
 
@@ -51,27 +52,29 @@ export default function OffersScreen() {
 
   const phone = mobileDigitsFromStored(profile?.phone ?? '');
 
+  const reloadOffers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offers = await fetchOffers({ query, group, body, sort, phone: phone || undefined });
+      setResults(offers);
+      setError(null);
+      for (const offer of offers) {
+        if (offer.liked) setLiked(offer.id, true);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Could not load offers.');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, group, body, sort, phone, setLiked]);
+
+  const { refreshControl } = useRefreshControl(reloadOffers);
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       const handle = setTimeout(() => {
-        setLoading(true);
-        void fetchOffers({ query, group, body, sort, phone: phone || undefined })
-          .then((offers) => {
-            if (cancelled) return;
-            setResults(offers);
-            setError(null);
-            for (const offer of offers) {
-              if (offer.liked) setLiked(offer.id, true);
-            }
-          })
-          .catch((err: unknown) => {
-            if (cancelled) return;
-            setError(err instanceof ApiError ? err.message : 'Could not load offers.');
-          })
-          .finally(() => {
-            if (!cancelled) setLoading(false);
-          });
+        if (!cancelled) void reloadOffers();
       }, query.trim() ? 300 : 0);
 
       return () => {
@@ -79,7 +82,7 @@ export default function OffersScreen() {
         clearTimeout(handle);
         show();
       };
-    }, [query, group, body, sort, phone, setLiked, show]),
+    }, [query, reloadOffers, show]),
   );
 
   const onScroll = useCallback(
@@ -250,6 +253,7 @@ export default function OffersScreen() {
         numColumns={columns}
         columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
         ListHeaderComponent={listHeader}
+        refreshControl={refreshControl}
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"

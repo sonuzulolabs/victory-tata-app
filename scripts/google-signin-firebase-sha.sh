@@ -43,8 +43,13 @@ NODE
 cat <<'EOF'
 === Fix DEVELOPER_ERROR ===
 
-Google Sign-In checks that your APK was signed with a certificate whose SHA-1
-is registered in Firebase for package com.zulolabs.victorytata.
+Google Sign-In checks SHA-1. Phone OTP Play Integrity checks SHA-256 of the
+*installed* APK, package com.zulolabs.victorytata.
+
+Sideloaded EAS preview APKs still fail Play Integrity even with matching SHA.
+Those builds force reCAPTCHA (EXPO_PUBLIC_FIREBASE_FORCE_RECAPTCHA=1). Production
+Play Store installs use Play Integrity, so also add Play Console → App integrity
+→ App signing key SHA-1 and SHA-256.
 
 1. Get the SHA-1 of the build you installed:
    • EAS preview/production APK:

@@ -12,6 +12,7 @@ import {
 } from '@/context/user-profile';
 import { formatInr } from '@/data/referrals';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useRefreshControl } from '@/hooks/use-refresh-control';
 import { fetchAccountSummary, fetchDealership } from '@/lib/api';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
 
@@ -68,33 +69,32 @@ export default function ProfileScreen() {
   const avatarSize = isTablet ? 96 : 76;
   const backSize = isTablet ? 48 : 40;
 
+  const reloadProfile = useCallback(async () => {
+    if (!isValidIndianMobile(phone)) {
+      setPoints(null);
+      setRewards(null);
+      setReferralCount(null);
+      return;
+    }
+    await refreshFromServer();
+    try {
+      const summary = await fetchAccountSummary(phone);
+      setPoints(summary.points);
+      setRewards(summary.creditedRewards);
+      setReferralCount(summary.referralCount);
+    } catch {
+      setPoints(null);
+      setRewards(null);
+      setReferralCount(null);
+    }
+  }, [phone, refreshFromServer]);
+
+  const { refreshControl } = useRefreshControl(reloadProfile);
+
   useFocusEffect(
     useCallback(() => {
-      if (!isValidIndianMobile(phone)) {
-        setPoints(null);
-        setRewards(null);
-        setReferralCount(null);
-        return;
-      }
-      let cancelled = false;
-      void refreshFromServer();
-      void fetchAccountSummary(phone)
-        .then((summary) => {
-          if (cancelled) return;
-          setPoints(summary.points);
-          setRewards(summary.creditedRewards);
-          setReferralCount(summary.referralCount);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setPoints(null);
-          setRewards(null);
-          setReferralCount(null);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [phone, refreshFromServer]),
+      void reloadProfile();
+    }, [reloadProfile]),
   );
 
   const memberSince = profile?.memberSince.trim() ?? '';
@@ -175,6 +175,7 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView
+        refreshControl={refreshControl}
         contentContainerStyle={[
           styles.scroll,
           {

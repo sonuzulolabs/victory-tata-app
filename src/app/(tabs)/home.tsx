@@ -21,6 +21,7 @@ import { useUserProfile } from '@/context/user-profile';
 import { REFER_BANNER, type HomeOffer } from '@/data/homeOffers';
 import { formatInr } from '@/data/referrals';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useRefreshControl } from '@/hooks/use-refresh-control';
 import { ApiError, fetchAccountSummary, fetchHome } from '@/lib/api';
 import { isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
 
@@ -50,52 +51,43 @@ export default function HomeScreen() {
   const phone = mobileDigitsFromStored(profile?.phone ?? '');
   const gap = isCompact ? GAP_COMPACT : GAP;
 
+  const reloadHome = useCallback(async () => {
+    setLoadingOffers(true);
+    try {
+      const home = await fetchHome();
+      setOffers(home.offers);
+      setReferBanner(home.referBanner);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Could not load home.');
+    } finally {
+      setLoadingOffers(false);
+    }
+
+    await refreshFromServer();
+
+    if (!isValidIndianMobile(phone)) {
+      setPoints(null);
+      setRewards(null);
+      return;
+    }
+
+    try {
+      const summary = await fetchAccountSummary(phone);
+      setPoints(summary.points);
+      setRewards(summary.creditedRewards);
+    } catch {
+      setPoints(null);
+      setRewards(null);
+    }
+  }, [phone, refreshFromServer]);
+
+  const { refreshControl } = useRefreshControl(reloadHome);
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      setLoadingOffers(true);
-      void fetchHome()
-        .then((home) => {
-          if (cancelled) return;
-          setOffers(home.offers);
-          setReferBanner(home.referBanner);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (cancelled) return;
-          setError(err instanceof ApiError ? err.message : 'Could not load home.');
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingOffers(false);
-        });
-
-      void refreshFromServer();
-
-      if (!isValidIndianMobile(phone)) {
-        setPoints(null);
-        setRewards(null);
-        return () => {
-          cancelled = true;
-        };
-      }
-
-      void fetchAccountSummary(phone)
-        .then((summary) => {
-          if (cancelled) return;
-          setPoints(summary.points);
-          setRewards(summary.creditedRewards);
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setPoints(null);
-            setRewards(null);
-          }
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }, [phone, refreshFromServer]),
+      void reloadHome();
+    }, [reloadHome]),
   );
 
   const homeStats = [
@@ -159,6 +151,7 @@ export default function HomeScreen() {
             minHeight: bodyH > 0 ? bodyH : undefined,
           },
         ]}
+        refreshControl={refreshControl}
         showsVerticalScrollIndicator={false}
         bounces={isCompact}
         keyboardShouldPersistTaps="handled">
@@ -301,12 +294,15 @@ export default function HomeScreen() {
               styles.actionTile,
               styles.actionTileDrive,
               isCompact && styles.actionTileDriveCompact,
+              isTablet && styles.actionTileDriveTablet,
               { opacity: pressed ? 0.92 : 1 },
             ]}>
-            <View style={styles.driveFoot}>
+            <View style={[styles.driveContent, isCompact && styles.driveContentCompact]}>
               <Text
-                style={[styles.driveTitle, { fontSize: fs(isCompact ? 14 : 16), lineHeight: lh(isCompact ? 14 : 16, 1.25) }]}
-                numberOfLines={2}>
+                style={[styles.driveTitle, { fontSize: fs(isCompact ? 13 : 16), lineHeight: lh(isCompact ? 13 : 16, 1.3) }]}
+                numberOfLines={2}
+                adjustsFontSizeToFit={isCompact}
+                minimumFontScale={0.82}>
                 Book a test drive
               </Text>
               {!isCompact ? (
@@ -319,8 +315,10 @@ export default function HomeScreen() {
                 <Ionicons name="arrow-forward" size={fs(14)} color={AUTH_BLUE} />
               </View>
             </View>
-            <View style={[styles.driveIcon, isTablet && styles.driveIconTablet, isCompact && styles.driveIconCompact]}>
-              <Ionicons name="car-sport" size={fs(18)} color="#FFFFFF" />
+            <View style={[styles.driveIconRail, isCompact && styles.driveIconRailCompact]}>
+              <View style={[styles.driveIcon, isTablet && styles.driveIconTablet, isCompact && styles.driveIconCompact]}>
+                <Ionicons name="car-sport" size={fs(18)} color="#FFFFFF" />
+              </View>
             </View>
           </Pressable>
 
@@ -591,19 +589,25 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   actionTileDrive: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    paddingVertical: 12,
+    paddingLeft: 12,
+    paddingRight: 52,
+    justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: AUTH_BLUE,
   },
+  actionTileDriveTablet: {
+    paddingVertical: 14,
+    paddingLeft: 14,
+    paddingRight: 62,
+  },
   actionTileDriveCompact: {
-    padding: 10,
+    paddingVertical: 10,
+    paddingLeft: 10,
+    paddingRight: 46,
     borderRadius: 18,
-    gap: 6,
   },
   actionTileRefer: {
     backgroundColor: AUTH_BLUE,
@@ -627,20 +631,36 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
   },
-  driveFoot: {
+  driveContent: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  driveContentCompact: {
+    gap: 6,
+  },
+  driveIconRail: {
+    position: 'absolute',
+    right: 10,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+  },
+  driveIconRailCompact: {
+    right: 8,
+    width: 34,
   },
   driveTitle: {
     fontWeight: '800',
     letterSpacing: -0.2,
     color: AUTH_BLUE,
-    marginBottom: 3,
+    textAlign: 'left',
   },
   driveSub: {
     color: '#8B90A0',
-    marginBottom: 12,
   },
   actionCta: {
     flexDirection: 'row',
@@ -657,7 +677,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   actionCtaCompact: {
-    marginTop: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },

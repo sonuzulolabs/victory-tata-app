@@ -99,7 +99,10 @@ export const SHOWROOMS = [
 
 export type ShowroomId = (typeof SHOWROOMS)[number]['id'];
 
+export type DriveScheduleMode = 'scheduled' | 'now';
+
 export type DriveBooking = {
+  scheduleMode: DriveScheduleMode;
   service: DriveService;
   location: string;
   guestName: string | null;

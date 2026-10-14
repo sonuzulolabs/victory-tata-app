@@ -2,6 +2,8 @@ export const AUTH_BLUE = '#0A1848';
 export const AUTH_BLUE_SOFT = '#152A6B';
 export const SCREEN_BG = '#F4F6FA';
 
+export const DELETE_ACCOUNT_URL = 'https://victorytata.zulolabs.com/delete-account';
+
 export const DEALERSHIP = {
   name: 'Victory Tata Motors',
   city: 'Tirupur',

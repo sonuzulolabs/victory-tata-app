@@ -24,6 +24,7 @@ import { AUTH_BLUE, AUTH_BLUE_SOFT, SCREEN_BG } from '@/constants/brand';
 import { useTabBarVisibility } from '@/context/tab-bar-visibility';
 import { useUserProfile } from '@/context/user-profile';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useRefreshControl } from '@/hooks/use-refresh-control';
 import {
   formatInr,
   formatReferralDate,
@@ -111,6 +112,8 @@ export default function ReferralsScreen() {
       setLoading(false);
     }
   }, [referrerPhone, referrerReady]);
+
+  const { refreshControl } = useRefreshControl(refresh);
 
   useFocusEffect(
     useCallback(() => {
@@ -264,6 +267,7 @@ export default function ReferralsScreen() {
       <ScrollView
         ref={scrollRef}
         style={styles.screen}
+        refreshControl={refreshControl}
         contentContainerStyle={[
           styles.content,
           {

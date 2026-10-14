@@ -1,9 +1,23 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
-import { ApiError, fetchCustomer, saveCustomer, type SavedCustomer } from '@/lib/api';
+import { fetchCustomer, saveCustomer, type SavedCustomer } from '@/lib/api';
+import { firebaseSessionProfile, waitForFirebaseAuthReady } from '@/lib/auth-session';
 import { signOutGoogleAuth } from '@/lib/google-auth';
 import { signOutPhoneAuth } from '@/lib/phone-auth';
 import { formatPhoneInput, isValidIndianMobile, mobileDigitsFromStored } from '@/lib/phone';
+import {
+  clearStoredUserProfile,
+  loadStoredUserProfile,
+  saveStoredUserProfile,
+} from '@/lib/user-profile-storage';
 
 export type AuthMethod = 'phone' | 'google';
 
@@ -18,6 +32,8 @@ export type UserProfile = {
 
 type UserProfileContextValue = {
   profile: UserProfile | null;
+  /** False until saved session / Firebase auth has been restored on launch. */
+  sessionReady: boolean;
   signInWithPhone: (phone10: string) => void;
   signInWithGoogle: (account: { name: string; email: string }) => void;
   updateProfile: (patch: Partial<Pick<UserProfile, 'name' | 'phone' | 'email' | 'city'>>) => void;
@@ -60,40 +76,40 @@ function mergeServerCustomer(prev: UserProfile, customer: SavedCustomer): UserPr
   };
 }
 
+function mergeStoredWithFirebase(stored: UserProfile, firebase: UserProfile | null): UserProfile {
+  if (!firebase) return stored;
+  if (stored.authMethod === 'phone' && firebase.authMethod === 'phone') {
+    return { ...stored, phone: stored.phone.trim() ? stored.phone : firebase.phone };
+  }
+  if (stored.authMethod === 'google' && firebase.authMethod === 'google') {
+    return {
+      ...stored,
+      name: stored.name.trim() || firebase.name,
+      email: stored.email.trim() || firebase.email,
+    };
+  }
+  return stored;
+}
+
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
 
   const syncCustomer = useCallback(async (next: UserProfile) => {
     const phone = mobileDigitsFromStored(next.phone);
     if (!isValidIndianMobile(phone)) return;
 
     const localName = next.name.trim();
-    try {
-      if (localName.length >= 2) {
-        const saved = await saveCustomer({
-          name: localName,
-          phone,
-          email: next.email.trim() || undefined,
-          city: next.city.trim() || undefined,
-        });
-        setProfile((prev) => (prev ? mergeServerCustomer(prev, saved) : prev));
-        return;
-      }
+    const nameForApi = localName.length >= 2 ? localName : 'Customer';
 
-      try {
-        const existing = await fetchCustomer(phone);
-        setProfile((prev) => (prev ? mergeServerCustomer(prev, existing) : prev));
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
-          const saved = await saveCustomer({
-            name: 'Customer',
-            phone,
-            email: next.email.trim() || undefined,
-            city: next.city.trim() || undefined,
-          });
-          setProfile((prev) => (prev ? mergeServerCustomer(prev, saved) : prev));
-        }
-      }
+    try {
+      const saved = await saveCustomer({
+        name: nameForApi,
+        phone,
+        email: next.email.trim() || undefined,
+        city: next.city.trim() || undefined,
+      });
+      setProfile((prev) => (prev ? mergeServerCustomer(prev, saved) : prev));
     } catch {
       // Keep the local session if Victory CRM is unreachable.
     }
@@ -110,20 +126,23 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         city: '',
       };
       setProfile(next);
+      void saveStoredUserProfile(next);
       void syncCustomer(next);
     },
     [syncCustomer],
   );
 
   const signInWithGoogle = useCallback((account: { name: string; email: string }) => {
-    setProfile({
+    const next: UserProfile = {
       authMethod: 'google',
       name: account.name,
       email: account.email,
       phone: '',
       memberSince: '',
       city: '',
-    });
+    };
+    setProfile(next);
+    void saveStoredUserProfile(next);
   }, []);
 
   const updateProfile = useCallback(
@@ -138,12 +157,58 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
           next.name = prev.name;
           next.email = prev.email;
         }
+        void saveStoredUserProfile(next);
         void syncCustomer(next);
         return next;
       });
     },
     [syncCustomer],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      await waitForFirebaseAuthReady();
+      const [stored, firebase] = await Promise.all([
+        loadStoredUserProfile(),
+        Promise.resolve(firebaseSessionProfile()),
+      ]);
+
+      let restored: UserProfile | null = null;
+      if (stored) {
+        restored = mergeStoredWithFirebase(stored, firebase);
+      } else if (firebase) {
+        restored = firebase;
+      }
+
+      if (cancelled) return;
+
+      if (restored) {
+        setProfile(restored);
+        void saveStoredUserProfile(restored);
+        void syncCustomer(restored);
+
+        const phone = mobileDigitsFromStored(restored.phone);
+        if (isValidIndianMobile(phone)) {
+          try {
+            const customer = await fetchCustomer(phone);
+            if (!cancelled) {
+              setProfile((prev) => (prev ? mergeServerCustomer(prev, customer) : prev));
+            }
+          } catch {
+            // Offline or CRM unreachable — keep restored session.
+          }
+        }
+      }
+
+      if (!cancelled) setSessionReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [syncCustomer]);
 
   const refreshFromServer = useCallback(async () => {
     const phone = mobileDigitsFromStored(profile?.phone ?? '');
@@ -154,13 +219,15 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         if (!prev) return prev;
         const serverName = customer.name.trim();
         const usableName = serverName && serverName.toLowerCase() !== 'customer' ? serverName : '';
-        return {
+        const merged = {
           ...prev,
           name: usableName || prev.name,
           email: customer.email || prev.email,
           city: customer.city || prev.city,
           memberSince: customer.memberSince || prev.memberSince,
         };
+        void saveStoredUserProfile(merged);
+        return merged;
       });
     } catch {
       // Keep the session already on the phone.
@@ -169,6 +236,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setProfile(null);
+    void clearStoredUserProfile();
     void signOutPhoneAuth();
     void signOutGoogleAuth();
   }, []);
@@ -186,6 +254,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       profile,
+      sessionReady,
       signInWithPhone,
       signInWithGoogle,
       updateProfile,
@@ -193,7 +262,16 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       signOut,
       isFieldLocked,
     }),
-    [profile, signInWithPhone, signInWithGoogle, updateProfile, refreshFromServer, signOut, isFieldLocked],
+    [
+      profile,
+      sessionReady,
+      signInWithPhone,
+      signInWithGoogle,
+      updateProfile,
+      refreshFromServer,
+      signOut,
+      isFieldLocked,
+    ],
   );
 
   return <UserProfileContext.Provider value={value}>{children}</UserProfileContext.Provider>;

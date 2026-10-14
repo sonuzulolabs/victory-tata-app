@@ -22,7 +22,9 @@
       "infoPlist": {
         "CFBundleDisplayName": "Victory Tata",
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -53,15 +55,31 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "minSdkVersion": 24
+          },
           "ios": {
-            "deploymentTarget": "16.4",
+            "deploymentTarget": "17.2",
             "useFrameworks": "dynamic"
           }
         }
       ],
       "@react-native-google-signin/google-signin",
       "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "@react-native-firebase/auth",
+      "@react-native-firebase/messaging",
+      "./plugins/with-android-notification-icon.js",
+      "./plugins/with-visit-tracking-foreground-service.js",
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.zulolabs.victorytata",
+          "bundleIdentifier": "com.zulolabs.victorytata.ExpoWidgetsTarget",
+          "enablePushNotifications": true,
+          "frequentUpdates": true,
+          "widgets": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

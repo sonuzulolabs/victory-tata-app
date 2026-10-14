@@ -1,5 +1,11 @@
+/** All digits from a string (no length cap). */
+export function digitsOnly(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+/** Up to 10 digits while the user types a local mobile (login / form fields). */
 export function phoneDigits(value: string) {
-  return value.replace(/\D/g, '').slice(0, 10);
+  return digitsOnly(value).slice(0, 10);
 }
 
 export function formatPhoneInput(value: string) {
@@ -14,14 +20,28 @@ export function isValidIndianMobile(digits: string): boolean {
 }
 
 export function formatPhoneDisplay(digits10: string) {
-  const d = phoneDigits(digits10);
-  if (d.length !== 10) return '';
+  const d = mobileDigitsFromStored(digits10);
+  if (!isValidIndianMobile(d) && d.length !== 10) return '';
+  if (!isValidIndianMobile(d)) return '';
   return `+91 ${formatPhoneInput(d)}`;
 }
 
-/** Extract 10-digit mobile from stored profile value (+91 … or plain digits). */
+/** Extract 10-digit Indian mobile from stored profile (+91 …, 91…, or plain digits). */
 export function mobileDigitsFromStored(stored: string) {
-  const raw = phoneDigits(stored);
-  if (raw.length === 12 && raw.startsWith('91')) return raw.slice(2);
-  return raw.slice(0, 10);
+  const raw = digitsOnly(stored);
+  if (raw.length === 0) return '';
+
+  if (raw.length >= 12 && raw.startsWith('91')) {
+    return raw.slice(-10);
+  }
+
+  if (raw.length === 11 && raw.startsWith('0')) {
+    return raw.slice(1);
+  }
+
+  if (raw.length > 10) {
+    return raw.slice(-10);
+  }
+
+  return raw;
 }
